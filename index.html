@@ -703,22 +703,24 @@
 
     <!-- HOME -->
     <div class="view active" id="view-home">
-      <div class="view-header">
-        <div>
-          <div class="view-title">Goedemorgen! ☕</div>
-          <div class="view-subtitle" id="home-datum"></div>
-        </div>
+      <div id="home-header" style="margin-bottom:28px;">
+        <div id="home-greeting" style="font-size:26px;font-weight:800;margin-bottom:4px;"></div>
+        <div id="home-datum" style="font-size:14px;color:var(--muted);"></div>
       </div>
-      <div class="stats-row" id="stats-row"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-        <div class="card" style="padding:16px;">
-          <div style="font-weight:700;margin-bottom:12px;">🔬 R&D in ontwikkeling</div>
-          <div id="home-rnd"></div>
-        </div>
-        <div class="card" style="padding:16px;">
-          <div style="font-weight:700;margin-bottom:12px;">🍽️ Gerechten op kaart</div>
-          <div id="home-gerechten"></div>
-        </div>
+
+      <!-- Snelle acties -->
+      <div style="margin-bottom:28px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:12px;">Snelle acties</div>
+        <div id="home-acties" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-row" id="stats-row" style="margin-bottom:28px;"></div>
+
+      <!-- Verbouwing + onderste rij -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;" id="home-grid">
+        <div class="card" style="padding:20px;" id="home-verbouwing-card"></div>
+        <div class="card" style="padding:20px;" id="home-checklist-card"></div>
       </div>
     </div>
 
@@ -1369,37 +1371,119 @@ function render(name) {
 // ════════════════════════════════════════
 function renderHome() {
   const now = new Date();
+  const uur = now.getHours();
+  const groet = uur < 12 ? 'Goedemorgen' : uur < 18 ? 'Goedemiddag' : 'Goedenavond';
+  const naam = currentUser?.naam || '';
+  document.getElementById('home-greeting').textContent = `${groet}${naam ? ', ' + naam : ''}! ☕`;
   document.getElementById('home-datum').textContent = now.toLocaleDateString('nl-NL', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+  // ── Snelle acties ──
+  const acties = [
+    { icon:'📋', label:'Nieuw recept',    kleur:'#dbeafe', tekst:'#1d4ed8', fn:"openModal('recept')" },
+    { icon:'🍽️', label:'Nieuw gerecht',   kleur:'#fef9c3', tekst:'#854d0e', fn:"openModal('gerecht')" },
+    { icon:'🥕', label:'Ingrediënt',      kleur:'#dcfce7', tekst:'#166534', fn:"openModal('ingredient')" },
+    { icon:'✅', label:'Openingslijst',   kleur:'#f3e8ff', tekst:'#7e22ce', fn:"showView('checklists')" },
+    { icon:'📖', label:'Menukaart',       kleur:'#ffedd5', tekst:'#9a3412', fn:"showView('menukaart')" },
+    { icon:'🔬', label:'R&D idee',        kleur:'#fce7f3', tekst:'#9d174d', fn:"openModal('rnd')" },
+  ];
+  document.getElementById('home-acties').innerHTML = acties.map(a => `
+    <button onclick="${a.fn}" style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:10px;border:1px solid ${a.kleur};background:${a.kleur};color:${a.tekst};font-size:13px;font-weight:600;cursor:pointer;transition:filter .15s;font-family:inherit;"
+      onmouseover="this.style.filter='brightness(.95)'" onmouseout="this.style.filter=''">
+      <span style="font-size:16px;">${a.icon}</span> ${a.label}
+    </button>`).join('');
+
+  // ── Stats ──
   const actief = db.gerechten.filter(g => g.status === 'Op kaart').length;
   const avgMarge = db.gerechten.length ? Math.round(db.gerechten.reduce((s,g) => s + marge(g), 0) / db.gerechten.length) : 0;
   const lowIng = db.ingredienten.filter(i => i.voorraad === 'Laag' || i.voorraad === 'Uitverkocht').length;
   const rndActief = db.rnd.filter(r => r.col !== 'live').length;
-
   document.getElementById('stats-row').innerHTML = `
-    <div class="stat-card"><div class="stat-label">Gerechten op kaart</div><div class="stat-value">${actief}</div><div class="stat-sub">${db.gerechten.length} totaal</div></div>
+    <div class="stat-card" onclick="showView('gerechten')" style="cursor:pointer;"><div class="stat-label">Gerechten op kaart</div><div class="stat-value">${actief}</div><div class="stat-sub">${db.gerechten.length} totaal</div></div>
     <div class="stat-card"><div class="stat-label">Gem. marge</div><div class="stat-value" style="color:${avgMarge>=65?'#166534':avgMarge>=50?'#854d0e':'#991b1b'}">${avgMarge}%</div><div class="stat-sub">over alle gerechten</div></div>
-    <div class="stat-card"><div class="stat-label">Recepten</div><div class="stat-value">${db.recepten.length}</div><div class="stat-sub">bereidingen</div></div>
-    <div class="stat-card"><div class="stat-label">Ingrediënten</div><div class="stat-value">${db.ingredienten.length}</div><div class="stat-sub">${lowIng > 0 ? `⚠️ ${lowIng} laag` : 'alles OK'}</div></div>
-    <div class="stat-card"><div class="stat-label">R&D</div><div class="stat-value">${rndActief}</div><div class="stat-sub">in ontwikkeling</div></div>
+    <div class="stat-card" onclick="showView('recepten')" style="cursor:pointer;"><div class="stat-label">Recepten</div><div class="stat-value">${db.recepten.length}</div><div class="stat-sub">bereidingen</div></div>
+    <div class="stat-card" onclick="showView('ingredienten')" style="cursor:pointer;"><div class="stat-label">Ingrediënten</div><div class="stat-value">${db.ingredienten.length}</div><div class="stat-sub">${lowIng > 0 ? `⚠️ ${lowIng} laag` : 'alles OK'}</div></div>
+    <div class="stat-card" onclick="showView('rnd')" style="cursor:pointer;"><div class="stat-label">R&D</div><div class="stat-value">${rndActief}</div><div class="stat-sub">in ontwikkeling</div></div>
   `;
 
-  document.getElementById('home-rnd').innerHTML = db.rnd.filter(r => r.col !== 'live').slice(0,5).map(r => `
-    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">
-      <span style="flex:1;font-size:13px;">${r.naam}</span>
-      <span class="badge ${rndBadge(r.col)}">${rndLabel(r.col)}</span>
-    </div>
-  `).join('') || '<div style="color:var(--muted);font-size:13px;padding:8px 0;">Geen actieve R&D items</div>';
+  // ── Verbouwing voortgang ──
+  const fases = db.fases || [];
+  const taken = db.verbouwtaken || [];
+  const budgetposten = db.budgetposten || [];
+  const totaalBudget = db.verbouwing?.totaalBudget || 0;
+  const uitgegeven = budgetposten.reduce((s,p) => s + (p.werkelijk||0), 0);
+  const budgetPct = totaalBudget ? Math.min(100, Math.round(uitgegeven / totaalBudget * 100)) : 0;
+  const takenGedaan = taken.filter(t => t.gedaan).length;
+  const takenPct = taken.length ? Math.round(takenGedaan / taken.length * 100) : 0;
+  const benodigdheden = db.benodigdheden || [];
+  const gekocht = benodigdheden.filter(b => b.gekocht).length;
 
-  document.getElementById('home-gerechten').innerHTML = db.gerechten.filter(g=>g.status==='Op kaart').slice(0,5).map(g=>`
-    <div style="padding:5px 0;border-bottom:1px solid var(--border);">
-      <div style="display:flex;justify-content:space-between;font-size:13px;">
-        <span>${g.naam}</span><span style="font-weight:600">€${num(g.prijs)}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);">
-        <span>${g.categorie}</span><span style="color:${marge(g)>=65?'#166534':'#854d0e'}">${marge(g)}% marge</span>
-      </div>
+  document.getElementById('home-verbouwing-card').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+      <span style="font-size:18px;">🏗️</span>
+      <div style="font-size:15px;font-weight:700;">Verbouwing</div>
+      <button onclick="showView('verbouw-budget')" style="margin-left:auto;font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;font-weight:600;">Bekijk →</button>
     </div>
-  `).join('');
+    <div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:5px;">
+        <span>Budget</span><span>€${Math.round(uitgegeven).toLocaleString('nl-NL')} / €${Math.round(totaalBudget).toLocaleString('nl-NL')}</span>
+      </div>
+      <div style="background:var(--border);border-radius:99px;height:8px;overflow:hidden;">
+        <div style="height:100%;width:${budgetPct}%;background:${budgetPct>90?'#ef4444':budgetPct>70?'#f59e0b':'var(--accent)'};border-radius:99px;transition:width .4s;"></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">${budgetPct}% van budget gebruikt</div>
+    </div>
+    <div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:5px;">
+        <span>Taken</span><span>${takenGedaan} / ${taken.length} gedaan</span>
+      </div>
+      <div style="background:var(--border);border-radius:99px;height:8px;overflow:hidden;">
+        <div style="height:100%;width:${takenPct}%;background:#22c55e;border-radius:99px;transition:width .4s;"></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">${takenPct}% afgerond</div>
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:5px;">
+        <span>Benodigdheden</span><span>${gekocht} / ${benodigdheden.length} gekocht</span>
+      </div>
+      <div style="background:var(--border);border-radius:99px;height:8px;overflow:hidden;">
+        <div style="height:100%;width:${benodigdheden.length?Math.round(gekocht/benodigdheden.length*100):0}%;background:#8b5cf6;border-radius:99px;transition:width .4s;"></div>
+      </div>
+    </div>`;
+
+  // ── Checklist voortgang vandaag ──
+  const today = now.toISOString().slice(0,10);
+  const clOpen = db.checklists?.opening || [];
+  const clSluit = db.checklists?.sluiting || [];
+  const afgevinkt = db.checklists?.afgevinkt?.[today] || {};
+  const openGedaan = (afgevinkt.opening||[]).length;
+  const sluitGedaan = (afgevinkt.sluiting||[]).length;
+  const openPct = clOpen.length ? Math.round(openGedaan/clOpen.length*100) : 0;
+  const sluitPct = clSluit.length ? Math.round(sluitGedaan/clSluit.length*100) : 0;
+
+  document.getElementById('home-checklist-card').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+      <span style="font-size:18px;">✅</span>
+      <div style="font-size:15px;font-weight:700;">Vandaag</div>
+      <button onclick="showView('checklists')" style="margin-left:auto;font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;font-weight:600;">Bekijk →</button>
+    </div>
+    <div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:5px;">
+        <span>🌅 Openingslijst</span><span>${openGedaan} / ${clOpen.length}</span>
+      </div>
+      <div style="background:var(--border);border-radius:99px;height:8px;overflow:hidden;">
+        <div style="height:100%;width:${openPct}%;background:#22c55e;border-radius:99px;transition:width .4s;"></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">${openPct===100?'✅ Volledig afgerond':openPct===0?'Nog niet begonnen':`${openPct}% gedaan`}</div>
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:5px;">
+        <span>🌙 Sluitingslijst</span><span>${sluitGedaan} / ${clSluit.length}</span>
+      </div>
+      <div style="background:var(--border);border-radius:99px;height:8px;overflow:hidden;">
+        <div style="height:100%;width:${sluitPct}%;background:#3b82f6;border-radius:99px;transition:width .4s;"></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">${sluitPct===100?'✅ Volledig afgerond':sluitPct===0?'Nog niet begonnen':`${sluitPct}% gedaan`}</div>
+    </div>`;
 }
 
 // ════════════════════════════════════════

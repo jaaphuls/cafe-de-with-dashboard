@@ -4610,8 +4610,9 @@ let syncUploadTimer = null;
 let syncPollInterval = null;
 let syncStatus = 'idle';
 
+const DEFAULT_SYNC = { binId: '6a26a997f5f4af5e29cae4cc', apiKey: '$2a$10$ANjNQ7wH2BH9mU3gZ4noQ.BO9sk5FjcEmrsHDknWzcFRaGukbe6Fu' };
 function loadSyncConfig() {
-  try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || {}; } catch(e) { return {}; }
+  try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || DEFAULT_SYNC; } catch(e) { return DEFAULT_SYNC; }
 }
 function saveSyncConfig(cfg) { localStorage.setItem(SYNC_KEY, JSON.stringify(cfg)); }
 

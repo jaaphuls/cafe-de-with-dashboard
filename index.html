@@ -2957,6 +2957,7 @@ function showLoginPin(userId) {
   if (!u) return;
   lpUserId = userId; lpPinBuffer = '';
   document.getElementById('login-screen').classList.add('pin-mode');
+  document.getElementById('login-screen').scrollTop = 0;
   const bg = ['#fef2f2','#fff7ed','#faf5ff','#f0fdf4','#eff6ff'][ROLES.indexOf(u.rol)%5];
   document.getElementById('lp-avatar').style.background = bg;
   document.getElementById('lp-avatar').style.border = `2px solid ${u.kleur||'var(--border)'}`;

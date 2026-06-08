@@ -669,6 +669,7 @@
       <div class="nav-item" onclick="showView('recepten')"><span class="icon">📋</span> Recepten</div>
       <div class="nav-item" onclick="showView('ingredienten')"><span class="icon">🥦</span> Ingrediënten</div>
       <div class="nav-item" onclick="showView('rnd')"><span class="icon">🔬</span> R&D</div>
+      <div class="nav-item" onclick="showView('inkooplijst')"><span class="icon">🛍️</span> Inkooplijst</div>
     </div>
     <div class="sidebar-section">
       <div class="sidebar-label">🫶 FOH</div>
@@ -722,6 +723,30 @@
         <div class="card" style="padding:20px;" id="home-verbouwing-card"></div>
         <div class="card" style="padding:20px;" id="home-checklist-card"></div>
       </div>
+    </div>
+
+    <!-- INKOOPLIJST -->
+    <div class="view" id="view-inkooplijst">
+      <div class="view-header">
+        <div><div class="view-title">🛍️ Inkooplijst</div><div class="view-subtitle">Automatisch berekend op basis van menu en couverts</div></div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px;">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+          <div class="form-group" style="margin:0;flex:1;min-width:200px;">
+            <label>Menu</label>
+            <select id="inkoop-menu-select" onchange="renderInkooplijst()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--text);">
+              <option value="">— Kies een menu —</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0;width:140px;">
+            <label>Aantal couverts</label>
+            <input id="inkoop-couverts" type="number" min="1" value="20" oninput="renderInkooplijst()"
+              style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--text);">
+          </div>
+          <button class="btn btn-ghost" onclick="printInkooplijst()">🖨️ Printen</button>
+        </div>
+      </div>
+      <div id="inkoop-body"></div>
     </div>
 
     <!-- MENUKAART -->
@@ -1342,6 +1367,7 @@ function render(name) {
   const map = {
     home: renderHome,
     menukaart: renderMenukaart,
+    inkooplijst: renderInkooplijst,
     gerechten: renderGerechten,
     recepten: renderRecepten,
     ingredienten: renderIngredienten,
@@ -1647,6 +1673,182 @@ function printAllergenen() {
     th { background:#f5f5f5; font-size:11px; }
     h2 { margin-bottom:4px; } .muted { color:#888; font-size:12px; }
   </style></head><body>${area.innerHTML}</body></html>`);
+  w.document.close();
+  w.print();
+}
+
+function renderInkooplijst() {
+  // Vul menu dropdown
+  const sel = document.getElementById('inkoop-menu-select');
+  if (!sel) return;
+  const huidig = sel.value;
+  sel.innerHTML = '<option value="">— Kies een menu —</option>' +
+    (db.menus||[]).map(m => `<option value="${m.id}" ${m.id===huidig?'selected':''}>${m.naam}</option>`).join('');
+
+  const body = document.getElementById('inkoop-body');
+  const menuId = sel.value;
+  const couverts = parseInt(document.getElementById('inkoop-couverts')?.value) || 1;
+
+  if (!menuId) {
+    body.innerHTML = '<div class="empty"><div class="empty-icon">🛍️</div><p>Kies een menu en vul het aantal couverts in</p></div>';
+    return;
+  }
+
+  const menu = db.menus.find(m => m.id === menuId);
+  if (!menu) return;
+
+  // Verzamel alle gerechten uit het menu
+  const gerechtenInMenu = (menu.secties||[]).flatMap(sec =>
+    (sec.gerechten||[]).map(gid => db.gerechten.find(g => g.id === gid)).filter(Boolean)
+  );
+
+  if (!gerechtenInMenu.length) {
+    body.innerHTML = '<div class="empty"><div class="empty-icon">🍽️</div><p>Dit menu heeft nog geen gerechten</p></div>';
+    return;
+  }
+
+  // Bouw ingrediëntenlijst op
+  // Eenheden die optellen: gram, kg, dl, liter, ml, el, tl, stuk, portie
+  const GRAM_UNITS = ['gram','g'];
+  const KG_UNITS = ['kg','kilo'];
+  const LITER_UNITS = ['liter','l'];
+  const DL_UNITS = ['dl','deciliter'];
+  const ML_UNITS = ['ml','milliliter'];
+
+  function normaliseUnit(hoeveelheid, eenheid) {
+    const e = (eenheid||'').toLowerCase();
+    const h = parseFloat(hoeveelheid) || 0;
+    if (GRAM_UNITS.includes(e)) return { h, e: 'gram' };
+    if (KG_UNITS.includes(e))   return { h: h*1000, e: 'gram' };
+    if (LITER_UNITS.includes(e))return { h, e: 'liter' };
+    if (DL_UNITS.includes(e))   return { h: h/10, e: 'liter' };
+    if (ML_UNITS.includes(e))   return { h: h/1000, e: 'liter' };
+    return { h, e: eenheid||'stuk' };
+  }
+
+  function formatAmount(h, e) {
+    if (e === 'gram') return h >= 1000 ? `${(h/1000).toLocaleString('nl-NL',{maximumFractionDigits:2})} kg` : `${Math.round(h)} g`;
+    if (e === 'liter') return h >= 1 ? `${h.toLocaleString('nl-NL',{maximumFractionDigits:2})} L` : `${Math.round(h*10)/10} dL`;
+    return `${Math.round(h*10)/10} ${e}`;
+  }
+
+  // Map: naam_lower → { naam, categorie, hoeveelheid, eenheid, leverancier }
+  const totalen = {};
+
+  gerechtenInMenu.forEach(gerecht => {
+    // Schaal: couverts / 1 portie per gerecht
+    const schaal = couverts;
+
+    // Haal ingrediënten op via gekoppelde recepten (componenten)
+    const componenten = gerecht.componenten || [];
+    componenten.forEach(comp => {
+      // Zoek recept op naam
+      const recept = db.recepten.find(r => r.naam === comp.naam || r.id === comp.receptId);
+      if (recept) {
+        const receptPorties = recept.porties || 1;
+        const compHoeveelheid = parseFloat(comp.hoeveelheid) || 1;
+        const factor = (schaal * compHoeveelheid) / receptPorties;
+
+        (recept.ingredienten||[]).forEach(ing => {
+          if (!ing.naam) return;
+          const key = ing.naam.toLowerCase().trim();
+          const { h, e } = normaliseUnit(ing.hoeveelheid * factor, ing.eenheid);
+          const ingData = db.ingredienten.find(i => i.naam.toLowerCase() === key);
+          if (!totalen[key]) {
+            totalen[key] = { naam: ing.naam, hoeveelheid: 0, eenheid: e, categorie: ingData?.categorie || 'Overig', leverancier: ingData?.leverancier || '' };
+          }
+          if (totalen[key].eenheid === e) {
+            totalen[key].hoeveelheid += h;
+          } else {
+            // Verschillende eenheden — apart houden
+            const key2 = key + '_' + e;
+            if (!totalen[key2]) totalen[key2] = { naam: ing.naam, hoeveelheid: 0, eenheid: e, categorie: ingData?.categorie || 'Overig', leverancier: ingData?.leverancier || '' };
+            totalen[key2].hoeveelheid += h;
+          }
+        });
+      } else {
+        // Geen recept gevonden — voeg component zelf toe
+        if (!comp.naam) return;
+        const key = comp.naam.toLowerCase().trim();
+        const { h, e } = normaliseUnit(parseFloat(comp.hoeveelheid)||1 * schaal, comp.eenheid);
+        if (!totalen[key]) totalen[key] = { naam: comp.naam, hoeveelheid: 0, eenheid: e, categorie: 'Overig', leverancier: '' };
+        totalen[key].hoeveelheid += h;
+      }
+    });
+
+    // Ook losse ingrediënten van gerecht zelf (zonder componenten)
+    if (!componenten.length) {
+      (gerecht.ingredienten||[]).forEach(ing => {
+        if (!ing.naam) return;
+        const key = ing.naam.toLowerCase().trim();
+        const { h, e } = normaliseUnit((parseFloat(ing.hoeveelheid)||1) * schaal, ing.eenheid);
+        const ingData = db.ingredienten.find(i => i.naam.toLowerCase() === key);
+        if (!totalen[key]) totalen[key] = { naam: ing.naam, hoeveelheid: 0, eenheid: e, categorie: ingData?.categorie || 'Overig', leverancier: ingData?.leverancier || '' };
+        totalen[key].hoeveelheid += h;
+      });
+    }
+  });
+
+  const items = Object.values(totalen).filter(i => i.hoeveelheid > 0);
+
+  if (!items.length) {
+    body.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><p>Geen ingrediënten gevonden. Zorg dat de gerechten recepten hebben met ingrediënten.</p></div>';
+    return;
+  }
+
+  // Groepeer op categorie
+  const cats = [...new Set(items.map(i => i.categorie))].sort();
+
+  body.innerHTML = `
+    <div id="inkoop-print-area">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding:14px 18px;background:var(--accent-light);border-radius:10px;border:1px solid var(--border);">
+        <span style="font-size:22px;">🛍️</span>
+        <div>
+          <div style="font-weight:700;font-size:15px;">${menu.naam} — ${couverts} couverts</div>
+          <div style="font-size:12px;color:var(--muted);">${items.length} ingrediënten · ${cats.length} categorieën</div>
+        </div>
+      </div>
+      ${cats.map(cat => {
+        const catItems = items.filter(i => i.categorie === cat).sort((a,b) => a.naam.localeCompare(b.naam,'nl'));
+        return `
+        <div style="margin-bottom:20px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:8px;">${cat}</div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;">
+              <tbody>
+                ${catItems.map((item,i) => `
+                <tr style="border-bottom:1px solid var(--border);${i%2===0?'':'background:var(--bg)'}">
+                  <td style="padding:10px 14px;font-size:13px;font-weight:500;">${item.naam}</td>
+                  <td style="padding:10px 14px;font-size:13px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;color:var(--accent);">${formatAmount(item.hoeveelheid, item.eenheid)}</td>
+                  <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${item.leverancier||'—'}</td>
+                  <td style="padding:10px 14px;text-align:center;">
+                    <input type="checkbox" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
+                  </td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function printInkooplijst() {
+  const area = document.getElementById('inkoop-print-area');
+  if (!area) return;
+  const w = window.open('', '_blank');
+  w.document.write(`<html><head><title>Inkooplijst</title><style>
+    body { font-family:-apple-system,sans-serif; padding:24px; font-size:13px; }
+    table { width:100%; border-collapse:collapse; margin-bottom:16px; }
+    td { padding:8px 10px; border-bottom:1px solid #eee; }
+    td:nth-child(2) { text-align:right; font-weight:700; }
+    h3 { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:#888; margin:16px 0 6px; }
+    .header { background:#fef2f2; padding:12px 16px; border-radius:8px; margin-bottom:20px; }
+    input[type=checkbox] { display:none; }
+  </style></head><body>
+  <div class="header">${document.querySelector('#inkoop-print-area > div')?.innerHTML||''}</div>
+  ${area.innerHTML}
+  </body></html>`);
   w.document.close();
   w.print();
 }

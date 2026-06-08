@@ -839,6 +839,7 @@
           <option value="updated">Recent gewijzigd</option>
           <option value="porties">Porties</option>
         </select>
+        <button class="btn btn-ghost" onclick="autoCategoriseerRecepten()" title="Categorieën automatisch invullen op basis van naam">✨ Auto-categoriseer</button>
       </div>
       <div class="card">
         <div class="table-wrap">
@@ -4666,6 +4667,45 @@ function autoCategoriseer() {
   save();
   renderIngredienten();
   toast(`✨ ${gewijzigd} ingrediënten gecategoriseerd${onzeker ? ` · ${onzeker} onzeker (blijft Overig)` : ''}`);
+}
+
+const RECEPT_CAT_RULES = [
+  ['Saus',          ['saus','jus','beurre','vinaigrette','aioli','mayonaise','mayo','dressing','hollandaise','béarnaise','bechamel','béchamel','velouté','romesco','pesto','tapenade','salsa','chutney','relish','ketchup','sambal','sriracha','hoisin','teriyaki','ponzu','tahini','hummus','raita']],
+  ['Bouillon / jus',['bouillon','fond','fumet','court-bouillon','consommé','bisque','stock','broth','extract','glace','demi-glace','jus']],
+  ['Puree',         ['puree','purée','mousse','crème','espuma','mousseline','smoothie']],
+  ['Deeg / beslag', ['deeg','beslag','pasta','gnocchi','blini','pannenkoek','wafel','brood','brioche','focaccia','ciabatta','baguette','croissant','pizza','quiche','tart','taart','pie','cake','gebak','koek','biscuit','crackers','crust','korst','ravioli','tortellini','dumpling','gyoza','wonton','filo','puff','bladerdeeg','soezendeeg','choux']],
+  ['Vlees',         ['vlees','steak','entrecote','côte','haas','filet','ribeye','ossenhaas','varken','lam','kalf','wild','eend','kip','kalkoen','kipfilet','kippenborst','kippenbout','konijn','fazant','gans','foie gras','charcuterie','worst','salami','ham','spek','bacon','pancetta','prosciutto','coppa','mortadella','rillette','ragù','ragu','bolognese','rendang','bourguignon','stoofpot','gehakt','tartaar','carpaccio']],
+  ['Vis',           ['vis','zalm','tonijn','forel','kabeljauw','zeebaars','tarbot','heilbot','snoekbaars','paling','ansjovis','sardine','makreel','haring','mosselen','mossel','oester','garnaal','kreeft','krab','sint-jakobsschelp','ceviche','sashimi','gravlax','gerookte']],
+  ['Groente',       ['groente','salade','soep','tomaat','wortel','aardappel','pompoen','courgette','aubergine','paprika','spinazie','boerenkool','broccoli','bloemkool','asperge','venkel','prei','ui','knoflook','champignon','paddenstoel','biet','knolselderij','radijs','rucola','witlof','andijvie','waterkers','gazpacho','minestrone','ratatouille','tabbouleh','caprese']],
+  ['Dessert',       ['dessert','taart','cake','ijs','sorbet','parfait','panna cotta','crème brûlée','mousse','tiramisu','cheesecake','brownie','cookie','koekje','madeleine','macaron','éclair','profiterole','bavarois','semifreddo','granita','compote','coulis','caramel','chocolade','praline','truffel','pavlova','meringue','clafoutis','tarte','crumble','pudding','flan','soufflé','opera','sacher','bombe']],
+  ['Marinade',      ['marinade','pekel','brine','cure','rub','dry rub','inleg','pickles','zuur','ferment']],
+];
+
+function guessReceptCategory(naam) {
+  if (!naam) return 'Overig';
+  const n = naam.toLowerCase();
+  for (const [cat, keywords] of RECEPT_CAT_RULES) {
+    for (const kw of keywords) {
+      if (n.includes(kw)) return cat;
+    }
+  }
+  return 'Overig';
+}
+
+function autoCategoriseerRecepten() {
+  if (!editMode) { toast('⚠️ Geen bewerkingsrechten'); return; }
+  const recepten = db.recepten || [];
+  let gewijzigd = 0, overig = 0;
+  recepten.forEach(r => {
+    if (!r.categorie || r.categorie === 'Overig') {
+      const cat = guessReceptCategory(r.naam || '');
+      if (cat !== 'Overig') { r.categorie = cat; gewijzigd++; }
+      else { r.categorie = 'Overig'; overig++; }
+    }
+  });
+  save();
+  renderRecepten();
+  toast(`✨ ${gewijzigd} recepten gecategoriseerd · ${overig} op Overig gezet`);
 }
 
 // ════════════════════════════════════════

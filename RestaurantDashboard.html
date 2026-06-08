@@ -2255,7 +2255,7 @@ function openDetail(type, id) {
         <div class="detail-field"><span class="detail-field-label">Bereidingstijd</span><span>${recept.bereidingstijd||'—'}</span></div>
         <div class="detail-field"><span class="detail-field-label">Porties</span><span>${recept.porties}</span></div>
         <div style="margin-top:12px;">
-          ${(recept.stappen||[]).length ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted);margin-bottom:8px;">Bereiding</div><div class="step-list">${recept.stappen.map(s=>`<div class="step-item">${s}</div>`).join('')}</div>` : ''}
+          ${(recept.stappen||[]).length ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted);margin-bottom:8px;">Bereiding</div><div class="step-list">${recept.stappen.map(s=>{const t=typeof s==='string'?s:(s.tekst||'');const f=typeof s==='string'?null:s.foto;return `<div class="step-item" style="flex-direction:column;">${t}${f?`<img src="${f}" style="max-width:100%;max-height:180px;border-radius:6px;border:1px solid var(--border);margin-top:6px;">`:''}</div>`;}).join('')}</div>` : ''}
         </div>
       </div>` : `<div class="detail-section"><div class="detail-section-title">Recept</div><p style="font-size:13px;color:var(--muted);">Nog geen recept gekoppeld. <button class="btn btn-ghost btn-sm" onclick="openModal('recept')">＋ Recept aanmaken</button></p></div>`}
       <div style="display:flex;gap:8px;margin-top:16px;">
@@ -2304,7 +2304,14 @@ function openDetail(type, id) {
       ${(r.stappen||[]).length ? `
       <div class="detail-section">
         <div class="detail-section-title">Bereiding</div>
-        <div class="step-list">${r.stappen.map(s=>`<div class="step-item">${s}</div>`).join('')}</div>
+        <div class="step-list">${r.stappen.map(s => {
+          const tekst = typeof s === 'string' ? s : (s.tekst||'');
+          const foto = typeof s === 'string' ? null : s.foto;
+          return `<div class="step-item" style="flex-direction:column;align-items:flex-start;gap:6px;">
+            <div style="display:flex;gap:10px;"><span>${tekst}</span></div>
+            ${foto ? `<img src="${foto}" style="max-width:100%;max-height:220px;border-radius:8px;border:1px solid var(--border);margin-left:32px;">` : ''}
+          </div>`;
+        }).join('')}</div>
       </div>` : ''}
       <div style="display:flex;gap:8px;margin-top:16px;">
         <button class="btn btn-primary" onclick="editItem('recept','${r.id}')">✏️ Bewerken</button>
@@ -2344,12 +2351,30 @@ function buildModal(type, item) {
   document.getElementById('modal-title').textContent = (item?'Bewerken: ':'Nieuw ') + titles[type];
 
   selectedAllergenen = item?.allergenen ? [...item.allergenen] : [];
-  modalSteps = item?.stappen ? [...item.stappen] : (type==='recept' && !item ? ['','',''] : ['']);
+  // Stappen: normaliseer naar { tekst, foto } objecten
+  const rawSteps = item?.stappen ? [...item.stappen] : (type==='recept' && !item ? ['','',''] : ['']);
+  modalSteps = rawSteps.map(s => typeof s === 'string' ? { tekst: s, foto: null } : { tekst: s.tekst||'', foto: s.foto||null });
   modalIngredients = item?.ingredienten ? item.ingredienten.map(i=>({...i})) : (type==='recept' && !item ? [{naam:'',hoeveelheid:1,eenheid:'gram',kostprijs:0},{naam:'',hoeveelheid:1,eenheid:'gram',kostprijs:0},{naam:'',hoeveelheid:1,eenheid:'gram',kostprijs:0}] : [{ naam:'', hoeveelheid:1, eenheid:'stuk', kostprijs:0 }]);
   modalComponents = item?.componenten ? item.componenten.map(c=>({...c})) : (type==='gerecht' && !item ? [{naam:'',hoeveelheid:'',eenheid:'',bereiding:''}] : []);
 
   const allergenHtml = () => `<div class="allergen-grid" id="allergen-grid">${ALLERGENEN.map(a=>`<div class="allergen-chip ${selectedAllergenen.includes(a)?'selected':''}" onclick="toggleAllergen('${a}')">${a}</div>`).join('')}</div>`;
-  const stepsHtml = () => `<div id="steps-container">${modalSteps.map((s,i)=>`<div class="step-row"><div class="step-num">${i+1}</div><textarea oninput="modalSteps[${i}]=this.value" placeholder="Stap ${i+1}…">${s}</textarea><button class="btn btn-danger btn-sm" onclick="removeStep(${i})">✕</button></div>`).join('')}</div><button class="btn btn-ghost btn-sm" style="margin-top:4px;" onclick="addStep()">＋ Stap</button>`;
+  const stepRowHtml = (s,i) => `
+    <div class="step-row" id="step-row-${i}" style="flex-direction:column;gap:6px;background:var(--bg);border-radius:8px;padding:10px;margin-bottom:8px;">
+      <div style="display:flex;gap:8px;align-items:flex-start;">
+        <div class="step-num" style="margin-top:4px;">${i+1}</div>
+        <textarea oninput="modalSteps[${i}].tekst=this.value" placeholder="Stap ${i+1}…" style="flex:1;min-height:56px;">${s.tekst||''}</textarea>
+        <button class="btn btn-danger btn-sm" onclick="removeStep(${i})">✕</button>
+      </div>
+      ${s.foto ? `<div style="position:relative;display:inline-block;">
+        <img src="${s.foto}" style="max-height:120px;border-radius:6px;border:1px solid var(--border);">
+        <button onclick="modalSteps[${i}].foto=null;rebuildSteps()" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;">✕</button>
+      </div>` : ''}
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--muted);width:fit-content;">
+        <span style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;">📷 Foto toevoegen</span>
+        <input type="file" accept="image/*" style="display:none;" onchange="previewStapFoto(this,${i})">
+      </label>
+    </div>`;
+  const stepsHtml = () => `<div id="steps-container">${modalSteps.map((s,i)=>stepRowHtml(s,i)).join('')}</div><button class="btn btn-ghost btn-sm" style="margin-top:4px;" onclick="addStep()">＋ Stap</button>`;
   const ingHtml = () => `<div id="ing-container">${modalIngredients.map((ing,i) => ingRowHtml(ing,i)).join('')}</div><div style="display:flex;gap:6px;margin-top:4px;"><button class="btn btn-ghost btn-sm" onclick="addIng()">＋ Ingrediënt</button><button class="btn btn-ghost btn-sm" onclick="addIngLinked()" style="color:var(--accent);">🔗 Sub-recept</button></div><div id="recalc-cost" style="font-size:12px;color:var(--muted);margin-top:6px;"></div>`;
   const compHtml = () => `
     <div id="comp-container">
@@ -2572,10 +2597,18 @@ function previewBordfoto(input) {
   reader.readAsDataURL(file);
 }
 
-function addStep() { modalSteps.push(''); rebuildSteps(); }
+function addStep() { modalSteps.push({ tekst:'', foto:null }); rebuildSteps(); }
 function removeStep(i) { modalSteps.splice(i,1); rebuildSteps(); }
+function previewStapFoto(input, i) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => { modalSteps[i].foto = ev.target.result; rebuildSteps(); };
+  reader.readAsDataURL(file);
+}
 function rebuildSteps() {
-  document.getElementById('steps-container').innerHTML = modalSteps.map((s,i)=>`<div class="step-row"><div class="step-num">${i+1}</div><textarea oninput="modalSteps[${i}]=this.value" placeholder="Stap ${i+1}…">${s}</textarea><button class="btn btn-danger btn-sm" onclick="removeStep(${i})">✕</button></div>`).join('');
+  const _sr = (s,i) => `<div class="step-row" id="step-row-${i}" style="flex-direction:column;gap:6px;background:var(--bg);border-radius:8px;padding:10px;margin-bottom:8px;"><div style="display:flex;gap:8px;align-items:flex-start;"><div class="step-num" style="margin-top:4px;">${i+1}</div><textarea oninput="modalSteps[${i}].tekst=this.value" placeholder="Stap ${i+1}…" style="flex:1;min-height:56px;">${s.tekst||''}</textarea><button class="btn btn-danger btn-sm" onclick="removeStep(${i})">✕</button></div>${s.foto?`<div style="position:relative;display:inline-block;"><img src="${s.foto}" style="max-height:120px;border-radius:6px;border:1px solid var(--border);"><button onclick="modalSteps[${i}].foto=null;rebuildSteps()" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;">✕</button></div>`:''}<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--muted);width:fit-content;"><span style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;">📷 Foto toevoegen</span><input type="file" accept="image/*" style="display:none;" onchange="previewStapFoto(this,${i})"></label></div>`;
+  document.getElementById('steps-container').innerHTML = modalSteps.map((s,i)=>_sr(s,i)).join('');
 }
 function addIng() { modalIngredients.push({naam:'',hoeveelheid:1,eenheid:'stuk',kostprijs:0}); rebuildIngs(); }
 function removeIng(i) { modalIngredients.splice(i,1); rebuildIngs(); recalcCost(); }
@@ -2615,7 +2648,7 @@ function saveModal() {
       }
       return s + (ing.hoeveelheid||0) * (ing.kostprijs||0);
     }, 0);
-    const obj = { naam:v('f-naam'), categorie:v('f-cat-recept')||'Overig', gerecht:v('f-gerecht')||'', porties:parseInt(v('f-porties'))||1, bereidingstijd:v('f-tijd'), ingredienten:ingrs, stappen:modalSteps.filter(s=>s.trim()), kostprijsTotaal:totalKost, updated:new Date().toISOString() };
+    const obj = { naam:v('f-naam'), categorie:v('f-cat-recept')||'Overig', gerecht:v('f-gerecht')||'', porties:parseInt(v('f-porties'))||1, bereidingstijd:v('f-tijd'), ingredienten:ingrs, stappen:modalSteps.filter(s=>s.tekst?.trim()), kostprijsTotaal:totalKost, updated:new Date().toISOString() };
     upsert(db.recepten, obj); renderRecepten();
   } else if (type === 'ingredient') {
     const obj = { naam:v('f-naam'), categorie:v('f-cat'), prijs:parseFloat(v('f-prijs'))||0, eenheid:v('f-eenheid'), leverancier:v('f-lever'), voorraad:v('f-voorraad') };

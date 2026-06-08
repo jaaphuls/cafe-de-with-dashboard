@@ -1521,6 +1521,7 @@ function renderMenukaart() {
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;${typeColors[m.type]||typeColors['Archief']}">${m.type||''}</span>
+          <button class="btn btn-ghost btn-sm" onclick="showAllergenenlijst('${m.id}')" title="Allergenenlijst">⚠️ Allergenen</button>
           <button class="btn btn-ghost btn-sm" onclick="openMenuEditor('${m.id}')">✏️</button>
           <button class="btn btn-ghost btn-sm" onclick="deleteMenu('${m.id}')">🗑️</button>
         </div>
@@ -1553,6 +1554,101 @@ function renderMenukaart() {
         <span>Archief</span><span style="font-size:11px;background:var(--border);border-radius:10px;padding:1px 8px;">${archief.length}</span>
       </div>
       ${archief.map(menuCard).join('')}` : ''}`;
+}
+
+function showAllergenenlijst(menuId) {
+  const m = db.menus.find(x => x.id === menuId);
+  if (!m) return;
+
+  // Verzamel alle gerechten uit alle secties
+  const alleGerechten = (m.secties||[]).flatMap(sec =>
+    (sec.gerechten||[]).map(gid => ({ sectie: sec.naam, gerecht: db.gerechten.find(g => g.id === gid) }))
+  ).filter(x => x.gerecht);
+
+  // Alle unieke allergenen in dit menu
+  const alleAllergenen = [...new Set(alleGerechten.flatMap(x => x.gerecht.allergenen||[]))].sort();
+
+  const ALLERGEN_ICONS = { 'Gluten':'🌾','Lactose':'🥛','Noten':'🥜','Ei':'🥚','Soja':'🫘','Selderij':'🌿','Mosterd':'🌻','Sesam':'🌱','Vis':'🐟','Schaal- en schelpdieren':'🦐','Sulfiet':'🍷' };
+
+  const overlay = document.createElement('div');
+  overlay.id = 'allergenen-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border-radius:16px;width:680px;max-width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25);display:flex;flex-direction:column;">
+
+      <!-- Header -->
+      <div style="padding:22px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
+        <div style="flex:1;">
+          <div style="font-size:17px;font-weight:800;">⚠️ Allergenenlijst — ${m.naam}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">${alleGerechten.length} gerechten · ${alleAllergenen.length} allergenen aanwezig</div>
+        </div>
+        <button onclick="printAllergenen()" class="btn btn-ghost btn-sm">🖨️ Printen</button>
+        <button onclick="document.getElementById('allergenen-overlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);padding:4px;">✕</button>
+      </div>
+
+      <div style="padding:20px 24px;" id="allergenen-print-area">
+
+        <!-- Samenvatting aanwezige allergenen -->
+        <div style="margin-bottom:20px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:10px;">Aanwezig in dit menu</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            ${alleAllergenen.length ? alleAllergenen.map(a => `
+              <span style="display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;background:#fef2f2;border:1px solid #fecaca;font-size:13px;font-weight:600;color:#991b1b;">
+                ${ALLERGEN_ICONS[a]||'⚠️'} ${a}
+              </span>`).join('') : '<span style="color:var(--muted);font-size:13px;">Geen allergenen geregistreerd</span>'}
+          </div>
+        </div>
+
+        <!-- Per sectie / gerecht -->
+        ${(m.secties||[]).map(sec => {
+          const gerechten = (sec.gerechten||[]).map(gid => db.gerechten.find(g=>g.id===gid)).filter(Boolean);
+          if (!gerechten.length) return '';
+          return `
+          <div style="margin-bottom:20px;">
+            <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid var(--border);">${sec.naam}</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+              <thead>
+                <tr style="background:var(--bg);">
+                  <th style="padding:8px 10px;text-align:left;font-weight:600;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border);">Gerecht</th>
+                  ${ALLERGENEN.map(a => `<th style="padding:8px 6px;text-align:center;font-size:11px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);" title="${a}">${ALLERGEN_ICONS[a]||a.slice(0,3)}</th>`).join('')}
+                </tr>
+              </thead>
+              <tbody>
+                ${gerechten.map((g,i) => `
+                <tr style="${i%2===0?'background:var(--surface)':'background:var(--bg)'}">
+                  <td style="padding:9px 10px;font-weight:500;">${g.naam}</td>
+                  ${ALLERGENEN.map(a => {
+                    const has = (g.allergenen||[]).includes(a);
+                    return `<td style="padding:9px 6px;text-align:center;">${has ? `<span style="color:#dc2626;font-size:15px;font-weight:700;">✓</span>` : `<span style="color:var(--border);font-size:13px;">·</span>`}</td>`;
+                  }).join('')}
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+        }).join('')}
+
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+}
+
+function printAllergenen() {
+  const area = document.getElementById('allergenen-print-area');
+  if (!area) return;
+  const w = window.open('', '_blank');
+  w.document.write(`<html><head><title>Allergenenlijst</title><style>
+    body { font-family: -apple-system, sans-serif; padding: 24px; font-size: 13px; }
+    table { width:100%; border-collapse:collapse; margin-bottom:20px; }
+    th, td { padding: 7px 8px; border: 1px solid #ddd; text-align:center; }
+    th:first-child, td:first-child { text-align:left; }
+    th { background:#f5f5f5; font-size:11px; }
+    h2 { margin-bottom:4px; } .muted { color:#888; font-size:12px; }
+  </style></head><body>${area.innerHTML}</body></html>`);
+  w.document.close();
+  w.print();
 }
 
 function deleteMenu(id) {

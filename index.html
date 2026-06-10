@@ -468,12 +468,14 @@
     #login-screen { position:fixed; inset:0; background:var(--bg); z-index:2000; display:flex; flex-direction:column; align-items:center; justify-content:center; overflow-y:auto; padding:20px; }
     #login-screen .login-brand { font-size:28px; font-weight:800; color:var(--accent); margin-bottom:6px; }
     #login-screen .login-sub { font-size:14px; color:var(--muted); margin-bottom:44px; }
-    .login-users { display:flex; flex-wrap:wrap; gap:18px; justify-content:center; max-width:540px; }
-    .login-user-btn { display:flex; flex-direction:column; align-items:center; gap:10px; background:var(--surface); border:2px solid var(--border); border-radius:16px; padding:22px 28px; cursor:pointer; transition:border-color .15s, box-shadow .15s; width:130px; }
-    .login-user-btn:hover { border-color:var(--accent); box-shadow:0 4px 16px rgba(185,28,28,.12); }
+    .login-select-wrap { display:flex; flex-direction:column; align-items:center; gap:14px; width:100%; max-width:300px; }
+    .login-select-avatar { width:72px; height:72px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:34px; border:3px solid var(--border); transition:border-color .2s; }
+    .login-select-dropdown { width:100%; padding:12px 16px; font-size:16px; font-weight:600; border:2px solid var(--border); border-radius:12px; background:var(--surface); color:var(--text); cursor:pointer; appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:36px; text-align:center; }
+    .login-select-dropdown:focus { outline:none; border-color:var(--accent); }
+    .login-select-rol { font-size:13px; color:var(--muted); height:18px; }
+    .login-select-btn { width:100%; padding:14px; font-size:16px; font-weight:700; background:var(--accent); color:#fff; border:none; border-radius:12px; cursor:pointer; transition:opacity .15s; }
+    .login-select-btn:hover { opacity:.88; }
     .login-user-avatar { width:56px; height:56px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:26px; flex-shrink:0; }
-    .login-user-name { font-size:14px; font-weight:700; text-align:center; }
-    .login-user-rol { font-size:11px; color:var(--muted); text-align:center; }
     #login-pin-screen { display:none; flex-direction:column; align-items:center; width:100%; }
     #login-pin-screen.show { display:flex; }
     #login-screen.pin-mode #login-user-select { display:none; }
@@ -495,12 +497,7 @@
       #login-screen { justify-content:flex-start; padding:40px 16px 30px; }
       #login-screen .login-brand { font-size:24px; margin-bottom:4px; }
       #login-screen .login-sub { font-size:13px; margin-bottom:24px; text-align:center; }
-      .login-users { gap:10px; max-width:100%; width:100%; }
-      .login-user-btn { width:calc(50% - 5px); padding:14px 10px; border-radius:12px; gap:8px; }
-      .login-user-avatar { width:44px; height:44px; font-size:20px; }
-      .login-user-name { font-size:13px; }
-      .login-user-rol { font-size:10px; }
-
+      .login-select-wrap { max-width:100%; width:280px; }
       #login-screen.pin-mode { justify-content:center; }
       .login-pin-avatar { width:60px; height:60px; font-size:28px; margin-bottom:8px; }
       .login-pin-name { font-size:18px; }
@@ -527,7 +524,12 @@
   <div id="login-user-select" style="display:flex;flex-direction:column;align-items:center;">
     <div class="login-brand">☕ Cafe de With</div>
     <div class="login-sub">Keuken Dashboard — Wie ben jij?</div>
-    <div class="login-users" id="login-users-grid"></div>
+    <div class="login-select-wrap">
+      <div class="login-select-avatar" id="login-sel-avatar">👤</div>
+      <select class="login-select-dropdown" id="login-user-dropdown" onchange="loginDropdownChange()"></select>
+      <div class="login-select-rol" id="login-sel-rol"></div>
+      <button class="login-select-btn" onclick="loginDropdownConfirm()">Doorgaan →</button>
+    </div>
   </div>
   <div id="login-pin-screen">
     <div class="login-pin-avatar" id="lp-avatar"></div>
@@ -3399,17 +3401,25 @@ function hideLoginScreen() {
 function showLoginUsers() {
   lpUserId = null; lpPinBuffer = '';
   document.getElementById('login-screen').classList.remove('pin-mode');
-  const grid = document.getElementById('login-users-grid');
   const users = loadUsers();
-  const bgColors = ['#fef2f2','#fff7ed','#faf5ff','#f0fdf4','#eff6ff','#fef9c3'];
-  grid.innerHTML = users.map((u,i) => `
-    <div class="login-user-btn" onclick="showLoginPin('${u.id}')">
-      <div class="login-user-avatar" style="background:${bgColors[i%bgColors.length]};border:2px solid ${u.kleur||'var(--border)'};">
-        <span>${u.emoji||'👤'}</span>
-      </div>
-      <div class="login-user-name">${u.naam}</div>
-      <div class="login-user-rol">${ROLE_LABELS[u.rol]||u.rol}</div>
-    </div>`).join('');
+  const dropdown = document.getElementById('login-user-dropdown');
+  dropdown.innerHTML = users.map(u => `<option value="${u.id}">${u.emoji||'👤'} ${u.naam}</option>`).join('');
+  loginDropdownChange();
+}
+
+function loginDropdownChange() {
+  const users = loadUsers();
+  const id = document.getElementById('login-user-dropdown').value;
+  const u = users.find(x => x.id === id);
+  if (!u) return;
+  document.getElementById('login-sel-avatar').textContent = u.emoji || '👤';
+  document.getElementById('login-sel-avatar').style.borderColor = u.kleur || 'var(--border)';
+  document.getElementById('login-sel-rol').textContent = ROLE_LABELS[u.rol] || u.rol;
+}
+
+function loginDropdownConfirm() {
+  const id = document.getElementById('login-user-dropdown').value;
+  if (id) showLoginPin(id);
 }
 
 document.addEventListener('keydown', e => {

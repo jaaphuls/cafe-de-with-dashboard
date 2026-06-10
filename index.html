@@ -91,19 +91,37 @@
       }
       #sidebar.mobile-open { transform: translateX(0); }
 
-      #main { padding: 16px; }
+      #main { padding: 12px; }
+
+      /* Topbar: logo op één regel */
+      #topbar { padding: 0 12px; gap: 10px; }
+      #topbar .brand { font-size: 14px; white-space: nowrap; }
 
       .view-header { flex-direction: column; gap: 10px; }
       .view-title { font-size: 20px; }
       .view-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
 
+      /* Stats: 2 kolommen */
       .stats-row { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
       .stat-card { padding: 12px 14px; }
       .stat-value { font-size: 20px; }
 
-      /* Tabellen scrollen horizontaal */
-      .card, [style*="overflow:hidden"] { overflow-x: auto; }
-      table { min-width: 500px; }
+      /* Homepage onderste grid: 1 kolom */
+      #home-grid { grid-template-columns: 1fr !important; }
+
+      /* Snelle acties: 2 kolommen */
+      #home-acties { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px; }
+      #home-acties button { justify-content: flex-start; font-size: 12px !important; padding: 10px 12px !important; }
+
+      /* Tabellen */
+      table { min-width: unset; width: 100%; }
+      /* Verberg minder belangrijke kolommen op mobiel */
+      .col-hide-mobile { display: none !important; }
+      /* Actieknoppen altijd zichtbaar en compacter */
+      .row-actions { opacity: 1 !important; gap: 2px; }
+      .row-actions .btn-sm { padding: 4px 6px; font-size: 11px; }
+      /* Voorraad dropdown smaller */
+      td select { font-size: 11px; padding: 2px 4px; max-width: 90px; }
 
       /* Modal fullscreen op mobiel */
       .modal-backdrop { align-items: flex-end; padding: 0; }
@@ -829,7 +847,7 @@
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Gerecht</th><th>Categorie</th><th>Allergenen</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Gerecht</th><th class="col-hide-mobile">Categorie</th><th class="col-hide-mobile">Allergenen</th><th>Status</th><th></th></tr></thead>
             <tbody id="gerechten-tbody"></tbody>
           </table>
         </div>
@@ -871,7 +889,7 @@
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Recept</th><th>Categorie</th><th>Laatste update</th><th></th></tr></thead>
+            <thead><tr><th>Recept</th><th>Categorie</th><th class="col-hide-mobile">Laatste update</th><th></th></tr></thead>
             <tbody id="recepten-tbody"></tbody>
           </table>
         </div>
@@ -1993,8 +2011,8 @@ function renderGerechten(query='', catFilter='', statusFilter='') {
         <strong class="editable" onclick="event.stopPropagation();inlineEdit('gerechten','${g.id}','naam',this)">${g.naam}<span class="edit-hint">✏</span></strong>
         <div style="font-size:11px;color:var(--muted);margin-top:2px;" class="editable" onclick="inlineEdit('gerechten','${g.id}','beschrijving',this)">${g.beschrijving||'+ beschrijving'}<span class="edit-hint">✏</span></div>
       </td>
-      <td><span class="badge badge-blue editable" onclick="inlineEdit('gerechten','${g.id}','categorie',this)">${g.categorie}<span class="edit-hint">✏</span></span></td>
-      <td><div style="display:flex;gap:3px;flex-wrap:wrap;">${(g.allergenen||[]).length ? g.allergenen.map(a=>`<span class="allergen-dot">${a}</span>`).join('') : '<span style="color:var(--muted);font-size:12px;">—</span>'}</div></td>
+      <td class="col-hide-mobile"><span class="badge badge-blue editable" onclick="inlineEdit('gerechten','${g.id}','categorie',this)">${g.categorie}<span class="edit-hint">✏</span></span></td>
+      <td class="col-hide-mobile"><div style="display:flex;gap:3px;flex-wrap:wrap;">${(g.allergenen||[]).length ? g.allergenen.map(a=>`<span class="allergen-dot">${a}</span>`).join('') : '<span style="color:var(--muted);font-size:12px;">—</span>'}</div></td>
       <td>
         <select style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--bg);" onchange="inlineSave('gerechten','${g.id}','status',this.value);render(currentView)">
           ${['Op kaart','Seizoen','Inactief'].map(s=>`<option ${g.status===s?'selected':''}>${s}</option>`).join('')}
@@ -2040,7 +2058,7 @@ function renderRecepten(query='') {
         ${r.bereidingstijd ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">⏱ ${r.bereidingstijd} · ${r.porties} port.</div>` : ''}
       </td>
       <td><span class="badge editable" style="${CATS_RECEPT_COLORS[r.categorie||'Overig']||CATS_RECEPT_COLORS['Overig']}border-radius:6px;padding:2px 9px;font-size:12px;font-weight:600;" onclick="inlineEdit('recepten','${r.id}','categorie',this)">${r.categorie||'Overig'}<span class="edit-hint">✏</span></span></td>
-      <td style="font-size:12px;color:var(--muted);">${formatDate(r.updated||r.updatedAt)}</td>
+      <td class="col-hide-mobile" style="font-size:12px;color:var(--muted);">${formatDate(r.updated||r.updatedAt)}</td>
       <td><div class="row-actions">
         <button class="btn btn-ghost btn-sm" onclick="openDetail('recept','${r.id}')">👁</button>
         <button class="btn btn-ghost btn-sm" onclick="editItem('recept','${r.id}')">✏️</button>
@@ -2098,14 +2116,14 @@ function renderIngredienten(query='') {
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Ingrediënt</th><th>Leverancier</th><th>Prijs</th><th>Per eenheid</th><th>Voorraad</th><th></th></tr></thead>
+            <thead><tr><th>Ingrediënt</th><th class="col-hide-mobile">Leverancier</th><th>Prijs</th><th class="col-hide-mobile">Per eenheid</th><th>Voorraad</th><th></th></tr></thead>
             <tbody>
               ${byCat[cat].sort((a,b)=>a.naam.localeCompare(b.naam,'nl')).map(i => `
                 <tr>
                   <td><strong class="editable" onclick="inlineEdit('ingredienten','${i.id}','naam',this)">${i.naam}<span class="edit-hint">✏</span></strong></td>
-                  <td><span class="editable" style="font-size:12px;color:var(--muted);" onclick="inlineEdit('ingredienten','${i.id}','leverancier',this)">${i.leverancier||'—'}<span class="edit-hint">✏</span></span></td>
+                  <td class="col-hide-mobile"><span class="editable" style="font-size:12px;color:var(--muted);" onclick="inlineEdit('ingredienten','${i.id}','leverancier',this)">${i.leverancier||'—'}<span class="edit-hint">✏</span></span></td>
                   <td><span class="editable" onclick="inlineEdit('ingredienten','${i.id}','prijs',this,'number')">€${num(i.prijs)}<span class="edit-hint">✏</span></span></td>
-                  <td><span class="editable" onclick="inlineEdit('ingredienten','${i.id}','eenheid',this)">${i.eenheid}<span class="edit-hint">✏</span></span></td>
+                  <td class="col-hide-mobile"><span class="editable" onclick="inlineEdit('ingredienten','${i.id}','eenheid',this)">${i.eenheid}<span class="edit-hint">✏</span></span></td>
                   <td>
                     <select style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--bg);" onchange="inlineSave('ingredienten','${i.id}','voorraad',this.value);render(currentView)">
                       ${['OK','Laag','Uitverkocht'].map(s=>`<option ${i.voorraad===s?'selected':''}>${s}</option>`).join('')}

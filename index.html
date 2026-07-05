@@ -701,6 +701,7 @@
       <div class="sidebar-label">🏗️ Verbouwing</div>
       <div class="nav-item" onclick="showView('verbouw-overzicht')"><span class="icon">🗺️</span> Overzicht</div>
       <div class="nav-item" onclick="showView('verbouw-kosten')"><span class="icon">💶</span> Kosten</div>
+      <div class="nav-item" onclick="showView('verbouw-benodigdheden')"><span class="icon">🛒</span> Benodigdheden</div>
     </div>
     <div class="sidebar-section">
       <div class="sidebar-label">💸 Food Calculator</div>
@@ -1053,6 +1054,18 @@
       <div id="verbouw-kosten-body"></div>
     </div>
 
+    <!-- VERBOUWING: BENODIGDHEDEN -->
+    <div class="view" id="view-verbouw-benodigdheden">
+      <div class="view-header">
+        <div><div class="view-title">🛒 Benodigdheden</div><div class="view-subtitle">Aankooplijst met vinkjes en bedragen</div></div>
+        <div class="view-actions">
+          <button class="btn btn-primary" onclick="openModal('benodigdheid')">＋ Item</button>
+        </div>
+      </div>
+      <div class="stats-row" id="benodigdheden-stats"></div>
+      <div id="benodigdheden-body"></div>
+    </div>
+
 
     <!-- FINANCIËN -->
     <div class="view" id="view-financien">
@@ -1387,6 +1400,7 @@ function render(name) {
     'verbouw-overzicht': renderVerbouwOverzicht,
     'verbouw-zone': renderVerbouwZone,
     'verbouw-kosten': renderVerbouwKosten,
+    'verbouw-benodigdheden': renderBenodigdheden,
     'fc-overview': fcRenderOverview,
     'fc-ingredienten': fcRenderIngredients,
     'fc-recepten': fcRenderRecipes,
@@ -3195,8 +3209,98 @@ function saveTotaalBudget(val) {}
 
 function renderBudget() {}
 function renderVerbouwTaken() {}
-function renderBenodigdheden() {}
-function toggleBenodigdheid() {}
+const BENODIGDHEDEN_DEFAULTS = [
+  { naam:'Spiraal kneder',               categorie:'Keukenapparatuur', schatting:3000,  werkelijk:0, leverancier:'', notities:'', gekocht:false },
+  { naam:'Koelcel',                      categorie:'Keukenapparatuur', schatting:5000,  werkelijk:0, leverancier:'', notities:'', gekocht:false },
+  { naam:'Vriezer 1400L',                categorie:'Keukenapparatuur', schatting:1400,  werkelijk:0, leverancier:'', notities:'', gekocht:false },
+  { naam:'Klimaatkast 2x',               categorie:'Keukenapparatuur', schatting:2000,  werkelijk:0, leverancier:'', notities:'', gekocht:false },
+  { naam:'Vacumeermachine',              categorie:'Keukenapparatuur', schatting:1200,  werkelijk:0, leverancier:'', notities:'', gekocht:false },
+  { naam:'Ninja creami 2x',              categorie:'Keukenapparatuur', schatting:300,   werkelijk:0, leverancier:'', notities:'', gekocht:false },
+  { naam:'Thermo - magimix - kitchenaid',categorie:'Keukenapparatuur', schatting:1000,  werkelijk:0, leverancier:'', notities:'', gekocht:false },
+  { naam:'Klein keuken materiaal',       categorie:'Klein materiaal',  schatting:2500,  werkelijk:0, leverancier:'', notities:'', gekocht:false },
+  { naam:'Borden + bestek',              categorie:'Servies & Bestek', schatting:5000,  werkelijk:0, leverancier:'', notities:'', gekocht:false },
+  { naam:'Glaswerk',                     categorie:'Servies & Bestek', schatting:1000,  werkelijk:0, leverancier:'', notities:'', gekocht:false },
+  { naam:'Tafels en stoelen',            categorie:'Meubilair',        schatting:10000, werkelijk:0, leverancier:'', notities:'', gekocht:false },
+  { naam:'Pooltafel + dartboard',        categorie:'Meubilair',        schatting:600,   werkelijk:0, leverancier:'', notities:'', gekocht:false },
+];
+
+function renderBenodigdheden() {
+  if (!db.benodigdheden) db.benodigdheden = [];
+  if (db.benodigdheden.length === 0) {
+    db.benodigdheden = BENODIGDHEDEN_DEFAULTS.map(i => ({ id: uid(), ...i }));
+    save();
+  }
+  const items = db.benodigdheden;
+  const stats = document.getElementById('benodigdheden-stats');
+  const body = document.getElementById('benodigdheden-body');
+  const totaalSchatting = items.reduce((s,i) => s + (i.schatting||0), 0);
+  const gekocht = items.filter(i => i.gekocht);
+  const totaalWerkelijk = gekocht.reduce((s,i) => s + (i.werkelijk||i.schatting||0), 0);
+  stats.innerHTML = `
+    <div class="stat-card"><div class="stat-value">${items.length}</div><div class="stat-label">Totaal items</div></div>
+    <div class="stat-card"><div class="stat-value">${gekocht.length} / ${items.length}</div><div class="stat-label">Gekocht</div></div>
+    <div class="stat-card"><div class="stat-value">€${Math.round(totaalSchatting).toLocaleString('nl-NL')}</div><div class="stat-label">Geschat totaal</div></div>
+    <div class="stat-card"><div class="stat-value">€${Math.round(totaalWerkelijk).toLocaleString('nl-NL')}</div><div class="stat-label">Werkelijk uitgegeven</div></div>`;
+  if (!items.length) { body.innerHTML = '<div class="empty"><div class="empty-icon">🛒</div><p>Nog geen benodigdheden</p></div>'; return; }
+  const cats = [...new Set(items.map(i => i.categorie||'Overig'))].sort();
+  body.innerHTML = cats.map(cat => {
+    const catItems = items.filter(i => (i.categorie||'Overig') === cat);
+    const catSchatting = catItems.reduce((s,i) => s+(i.schatting||0), 0);
+    const catWerkelijk = catItems.filter(i=>i.gekocht).reduce((s,i) => s+(i.werkelijk||i.schatting||0), 0);
+    return `<div style="margin-bottom:28px;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:8px;">${cat}</div>
+      <div class="card" style="overflow:hidden;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead><tr style="background:var(--bg);border-bottom:1px solid var(--border);">
+            <th style="padding:10px 12px;width:44px;"></th>
+            <th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--muted);font-weight:600;">Product</th>
+            <th style="padding:10px 14px;text-align:right;font-size:12px;color:var(--muted);font-weight:600;" class="col-hide-mobile">Geschat</th>
+            <th style="padding:10px 14px;text-align:right;font-size:12px;color:var(--muted);font-weight:600;" class="col-hide-mobile">Betaald</th>
+            <th style="padding:10px 12px;width:70px;"></th>
+          </tr></thead>
+          <tbody>${catItems.map(item => `
+            <tr style="border-bottom:1px solid var(--border);${item.gekocht?'background:var(--bg);':''}">
+              <td style="padding:11px 12px;text-align:center;vertical-align:middle;">
+                <input type="checkbox" ${item.gekocht?'checked':''} onchange="toggleBenodigdheid('${item.id}',this.checked)" style="width:17px;height:17px;cursor:pointer;accent-color:var(--accent);">
+              </td>
+              <td style="padding:11px 12px;vertical-align:middle;">
+                <div style="font-size:13px;font-weight:500;${item.gekocht?'text-decoration:line-through;color:var(--muted);':''}">${item.naam}</div>
+                ${item.notities?`<div style="font-size:11px;color:var(--muted);margin-top:2px;">${item.notities}</div>`:''}
+              </td>
+              <td style="padding:11px 14px;text-align:right;font-size:13px;font-variant-numeric:tabular-nums;" class="col-hide-mobile">€${num(item.schatting||0)}</td>
+              <td style="padding:11px 14px;text-align:right;font-size:13px;font-variant-numeric:tabular-nums;" class="col-hide-mobile">
+                ${item.gekocht?`<span style="color:var(--accent);font-weight:600;">€${num(item.werkelijk||item.schatting||0)}</span>`:`<span style="color:var(--muted);">—</span>`}
+              </td>
+              <td style="padding:11px 12px;text-align:right;white-space:nowrap;">
+                <button class="btn btn-ghost btn-sm" onclick="editItem('benodigdheid','${item.id}')">✏️</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteItem('benodigdheid','${item.id}')">🗑️</button>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+          <tfoot><tr style="background:var(--bg);border-top:2px solid var(--border);">
+            <td colspan="2" style="padding:10px 12px;font-size:12px;font-weight:600;color:var(--muted);">Subtotaal</td>
+            <td style="padding:10px 14px;text-align:right;font-size:13px;font-weight:700;" class="col-hide-mobile">€${num(catSchatting)}</td>
+            <td style="padding:10px 14px;text-align:right;font-size:13px;font-weight:700;color:var(--accent);" class="col-hide-mobile">${catWerkelijk?`€${num(catWerkelijk)}`:'—'}</td>
+            <td></td>
+          </tr></tfoot>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleBenodigdheid(id, gekocht) {
+  if (!db.benodigdheden) return;
+  const item = db.benodigdheden.find(i => i.id === id);
+  if (!item) return;
+  item.gekocht = gekocht;
+  if (gekocht && !item.werkelijk) {
+    const inp = prompt(`Hoeveel heb je betaald voor "${item.naam}"? (leeg = schatting €${num(item.schatting)})`, item.schatting || '');
+    item.werkelijk = (inp !== null && inp.trim()) ? parseFloat(inp.replace(',','.')) || item.schatting : item.schatting;
+  }
+  save(); renderBenodigdheden();
+  if (gekocht) toast(`✓ ${item.naam} gekocht — €${num(item.werkelijk||item.schatting)}`);
+}
 function renderLeveranciers() {}
 
 // ════════════════════════════════════════

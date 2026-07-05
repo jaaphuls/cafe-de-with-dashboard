@@ -699,10 +699,8 @@
     </div>
     <div class="sidebar-section">
       <div class="sidebar-label">🏗️ Verbouwing</div>
-      <div class="nav-item" onclick="showView('verbouw-tijdlijn')"><span class="icon">📅</span> Tijdlijn</div>
-      <div class="nav-item" onclick="showView('verbouw-budget')"><span class="icon">💶</span> Budget</div>
-      <div class="nav-item" onclick="showView('verbouw-taken')"><span class="icon">✅</span> Taken</div>
-      <div class="nav-item" onclick="showView('verbouw-benodigdheden')"><span class="icon">🛒</span> Benodigdheden</div>
+      <div class="nav-item" onclick="showView('verbouw-overzicht')"><span class="icon">🗺️</span> Overzicht</div>
+      <div class="nav-item" onclick="showView('verbouw-kosten')"><span class="icon">💶</span> Kosten</div>
     </div>
     <div class="sidebar-section">
       <div class="sidebar-label">💸 Food Calculator</div>
@@ -1021,52 +1019,38 @@
       <div id="agenda-board"></div>
     </div>
 
-    <!-- VERBOUWING: TIJDLIJN -->
-    <div class="view" id="view-verbouw-tijdlijn">
+    <!-- VERBOUWING: OVERZICHT -->
+    <div class="view" id="view-verbouw-overzicht">
       <div class="view-header">
-        <div><div class="view-title">📅 Tijdlijn</div><div class="view-subtitle">Fases, planning en voortgang</div></div>
-        <div class="view-actions"><button class="btn btn-primary" onclick="openModal('fase')">＋ Fase</button></div>
+        <div><div class="view-title">🏗️ Verbouwing</div><div class="view-subtitle">Voortgang per zone</div></div>
       </div>
-      <div id="tijdlijn-body"></div>
+      <div id="verbouw-zones-grid"></div>
     </div>
 
-    <!-- VERBOUWING: BUDGET -->
-    <div class="view" id="view-verbouw-budget">
+    <!-- VERBOUWING: ZONE DETAIL -->
+    <div class="view" id="view-verbouw-zone">
       <div class="view-header">
-        <div><div class="view-title">💶 Budget</div><div class="view-subtitle">Offerte vs. werkelijk per categorie</div></div>
+        <div>
+          <button onclick="showView('verbouw-overzicht')" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:0;margin-bottom:6px;">← Overzicht</button>
+          <div class="view-title" id="verbouw-zone-title"></div>
+        </div>
         <div class="view-actions">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <label style="font-size:12px;color:var(--muted);white-space:nowrap;">Totaalbudget €</label>
-            <input id="budget-totaal-input" type="number" step="100" placeholder="0"
-              style="width:110px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface);color:var(--text);"
-              oninput="saveTotaalBudget(this.value)">
-          </div>
-          <button class="btn btn-primary" onclick="openModal('budgetpost')">＋ Post</button>
+          <button class="btn btn-primary" onclick="openVerbouwTaakForm()">＋ Taak</button>
         </div>
       </div>
-      <div class="stats-row" id="budget-stats"></div>
-      <div id="budget-body"></div>
+      <div id="verbouw-zone-body"></div>
     </div>
 
-    <!-- VERBOUWING: TAKEN -->
-    <div class="view" id="view-verbouw-taken">
+    <!-- VERBOUWING: KOSTEN -->
+    <div class="view" id="view-verbouw-kosten">
       <div class="view-header">
-        <div><div class="view-title">✅ Taken verbouwing</div><div class="view-subtitle">Per fase gegroepeerd</div></div>
-        <div class="view-actions"><button class="btn btn-primary" onclick="openModal('verbouwtaak')">＋ Taak</button></div>
-      </div>
-      <div id="verbouw-taken-body"></div>
-    </div>
-
-    <!-- VERBOUWING: BENODIGDHEDEN -->
-    <div class="view" id="view-verbouw-benodigdheden">
-      <div class="view-header">
-        <div><div class="view-title">🛒 Benodigdheden</div><div class="view-subtitle">Aankooplijst — automatisch verwerkt in budget</div></div>
+        <div><div class="view-title">💶 Kosten</div><div class="view-subtitle">Kostenplaatje per zone</div></div>
         <div class="view-actions">
-          <button class="btn btn-primary" onclick="openModal('benodigdheid')">＋ Item</button>
+          <button class="btn btn-primary" onclick="openVerbouwKostenForm()">＋ Post</button>
         </div>
       </div>
-      <div class="stats-row" id="benodigdheden-stats"></div>
-      <div id="benodigdheden-body"></div>
+      <div class="stats-row" id="verbouw-kosten-stats"></div>
+      <div id="verbouw-kosten-body"></div>
     </div>
 
 
@@ -1345,8 +1329,8 @@ function defaultDB() {
     recepten: [],
     ingredienten: [],
     menus: [],
-    verbouwing: { totaalBudget: 0 },
-    benodigdheden: [],
+    verbouwZones: {},
+    verbouwKosten: [],
     checklists: { opening: [], sluiting: [], afgevinkt: {} },
     rnd: [],
     taken: [],
@@ -1400,11 +1384,9 @@ function render(name) {
     checklists: renderChecklists,
     financien: renderFinancien,
     agenda: renderAgenda,
-    'verbouw-tijdlijn': renderTijdlijn,
-    'verbouw-budget': renderBudget,
-    'verbouw-taken': renderVerbouwTaken,
-    'verbouw-benodigdheden': renderBenodigdheden,
-    'verbouw-leveranciers': renderLeveranciers,
+    'verbouw-overzicht': renderVerbouwOverzicht,
+    'verbouw-zone': renderVerbouwZone,
+    'verbouw-kosten': renderVerbouwKosten,
     'fc-overview': fcRenderOverview,
     'fc-ingredienten': fcRenderIngredients,
     'fc-recepten': fcRenderRecipes,
@@ -1453,48 +1435,41 @@ function renderHome() {
   `;
 
   // ── Verbouwing voortgang ──
-  const fases = db.fases || [];
-  const taken = db.verbouwtaken || [];
-  const budgetposten = db.budgetposten || [];
-  const totaalBudget = db.verbouwing?.totaalBudget || 0;
-  const uitgegeven = budgetposten.reduce((s,p) => s + (p.werkelijk||0), 0);
-  const budgetPct = totaalBudget ? Math.min(100, Math.round(uitgegeven / totaalBudget * 100)) : 0;
-  const takenGedaan = taken.filter(t => t.gedaan).length;
-  const takenPct = taken.length ? Math.round(takenGedaan / taken.length * 100) : 0;
-  const benodigdheden = db.benodigdheden || [];
-  const gekocht = benodigdheden.filter(b => b.gekocht).length;
+  const ZONES = verbouwZones();
+  const alleTaken = ZONES.flatMap(z => (db.verbouwZones?.[z.id] || []));
+  const gedaanTotaal = alleTaken.filter(t => t.gedaan).length;
+  const totalPct = alleTaken.length ? Math.round(gedaanTotaal / alleTaken.length * 100) : 0;
+  const totaalKosten = (db.verbouwKosten||[]).reduce((s,k) => s + (k.geschat||0), 0);
 
   document.getElementById('home-verbouwing-card').innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
       <span style="font-size:18px;">🏗️</span>
       <div style="font-size:15px;font-weight:700;">Verbouwing</div>
-      <button onclick="showView('verbouw-budget')" style="margin-left:auto;font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;font-weight:600;">Bekijk →</button>
+      <button onclick="showView('verbouw-overzicht')" style="margin-left:auto;font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;font-weight:600;">Bekijk →</button>
     </div>
     <div style="margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:5px;">
-        <span>Budget</span><span>€${Math.round(uitgegeven).toLocaleString('nl-NL')} / €${Math.round(totaalBudget).toLocaleString('nl-NL')}</span>
+        <span>Totale voortgang</span><span>${gedaanTotaal} / ${alleTaken.length} taken</span>
       </div>
       <div style="background:var(--border);border-radius:99px;height:8px;overflow:hidden;">
-        <div style="height:100%;width:${budgetPct}%;background:${budgetPct>90?'#ef4444':budgetPct>70?'#f59e0b':'var(--accent)'};border-radius:99px;transition:width .4s;"></div>
+        <div style="height:100%;width:${totalPct}%;background:#22c55e;border-radius:99px;transition:width .4s;"></div>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:4px;">${budgetPct}% van budget gebruikt</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">${totalPct}% afgerond</div>
     </div>
-    <div style="margin-bottom:14px;">
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:5px;">
-        <span>Taken</span><span>${takenGedaan} / ${taken.length} gedaan</span>
-      </div>
-      <div style="background:var(--border);border-radius:99px;height:8px;overflow:hidden;">
-        <div style="height:100%;width:${takenPct}%;background:#22c55e;border-radius:99px;transition:width .4s;"></div>
-      </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:4px;">${takenPct}% afgerond</div>
-    </div>
-    <div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:5px;">
-        <span>Benodigdheden</span><span>${gekocht} / ${benodigdheden.length} gekocht</span>
-      </div>
-      <div style="background:var(--border);border-radius:99px;height:8px;overflow:hidden;">
-        <div style="height:100%;width:${benodigdheden.length?Math.round(gekocht/benodigdheden.length*100):0}%;background:#8b5cf6;border-radius:99px;transition:width .4s;"></div>
-      </div>
+    ${ZONES.slice(0,4).map(z => {
+      const taken = db.verbouwZones?.[z.id] || [];
+      const pct = taken.length ? Math.round(taken.filter(t=>t.gedaan).length/taken.length*100) : 0;
+      return `<div style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:3px;">
+          <span>${z.icon} ${z.naam}</span><span>${pct}%</span>
+        </div>
+        <div style="background:var(--border);border-radius:99px;height:5px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${z.kleur};border-radius:99px;"></div>
+        </div>
+      </div>`;
+    }).join('')}
+    <div style="margin-top:12px;font-size:12px;color:var(--muted);display:flex;justify-content:space-between;">
+      <span>Geschatte kosten</span><span style="font-weight:700;color:var(--text);">€${Math.round(totaalKosten).toLocaleString('nl-NL')}</span>
     </div>`;
 
   // ── Checklist voortgang vandaag ──
@@ -2882,6 +2857,263 @@ function onAgendaDrop(e, datum) {
 // ════════════════════════════════════════
 const FASE_KLEUREN = ['#b91c1c','#c2410c','#b45309','#15803d','#1d4ed8','#7e22ce','#be185d','#0f766e'];
 
+// ════════════════════════════════════════
+// VERBOUWING — ZONES
+// ════════════════════════════════════════
+const VERBOUW_ZONES = [
+  { id:'bar',       naam:'Bar',              icon:'🍸', kleur:'#f59e0b' },
+  { id:'keuken',    naam:'Keuken',           icon:'👨‍🍳', kleur:'#ef4444' },
+  { id:'dinerzaal', naam:'Dinerzaal',        icon:'🍽️', kleur:'#8b5cf6' },
+  { id:'kelder-g',  naam:'Kelder (Gast)',    icon:'🪑', kleur:'#06b6d4' },
+  { id:'kelder-p',  naam:'Kelder (Personeel)',icon:'🔧', kleur:'#64748b' },
+  { id:'club',      naam:'Club',             icon:'🎵', kleur:'#ec4899' },
+  { id:'tuin',      naam:'Tuin',             icon:'🌿', kleur:'#22c55e' },
+];
+
+function verbouwZones() { return VERBOUW_ZONES; }
+
+let activeVerbouwZone = null;
+
+function renderVerbouwOverzicht() {
+  const grid = document.getElementById('verbouw-zones-grid');
+  const kosten = db.verbouwKosten || [];
+  grid.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
+      ${VERBOUW_ZONES.map(z => {
+        const taken = db.verbouwZones?.[z.id] || [];
+        const gedaan = taken.filter(t => t.gedaan).length;
+        const pct = taken.length ? Math.round(gedaan / taken.length * 100) : 0;
+        const zoneKosten = kosten.filter(k => k.zone === z.id).reduce((s,k) => s + (k.geschat||0), 0);
+        return `
+          <div onclick="openVerbouwZone('${z.id}')" style="background:var(--surface);border:2px solid var(--border);border-radius:14px;padding:20px;cursor:pointer;transition:border-color .15s,box-shadow .15s;" onmouseover="this.style.borderColor='${z.kleur}';this.style.boxShadow='0 4px 16px rgba(0,0,0,.08)'" onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow=''">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+              <span style="font-size:24px;">${z.icon}</span>
+              <div>
+                <div style="font-size:15px;font-weight:700;">${z.naam}</div>
+                <div style="font-size:11px;color:var(--muted);">${gedaan} / ${taken.length} taken gedaan</div>
+              </div>
+              <div style="margin-left:auto;font-size:18px;font-weight:800;color:${pct===100?'#22c55e':'var(--muted)'};">${pct}%</div>
+            </div>
+            <div style="background:var(--border);border-radius:99px;height:8px;overflow:hidden;margin-bottom:12px;">
+              <div style="height:100%;width:${pct}%;background:${z.kleur};border-radius:99px;transition:width .4s;"></div>
+            </div>
+            ${zoneKosten ? `<div style="font-size:12px;color:var(--muted);">💶 ~€${Math.round(zoneKosten).toLocaleString('nl-NL')} geschat</div>` : `<div style="font-size:12px;color:var(--muted);">Klik om taken te bekijken</div>`}
+          </div>`;
+      }).join('')}
+    </div>
+    <div style="margin-top:20px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;">Totaal overzicht</div>
+      ${(() => {
+        const allTaken = VERBOUW_ZONES.flatMap(z => db.verbouwZones?.[z.id] || []);
+        const totGedaan = allTaken.filter(t => t.gedaan).length;
+        const totPct = allTaken.length ? Math.round(totGedaan/allTaken.length*100) : 0;
+        const totKosten = (db.verbouwKosten||[]).reduce((s,k)=>s+(k.geschat||0),0);
+        const betaald = (db.verbouwKosten||[]).filter(k=>k.betaald).reduce((s,k)=>s+(k.geschat||0),0);
+        return `
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px;">
+            <div style="text-align:center;"><div style="font-size:22px;font-weight:800;">${totGedaan}/${allTaken.length}</div><div style="font-size:11px;color:var(--muted);">Taken gedaan</div></div>
+            <div style="text-align:center;"><div style="font-size:22px;font-weight:800;">€${Math.round(totKosten).toLocaleString('nl-NL')}</div><div style="font-size:11px;color:var(--muted);">Geschatte kosten</div></div>
+            <div style="text-align:center;"><div style="font-size:22px;font-weight:800;">€${Math.round(betaald).toLocaleString('nl-NL')}</div><div style="font-size:11px;color:var(--muted);">Betaald</div></div>
+          </div>
+          <div style="background:var(--border);border-radius:99px;height:10px;overflow:hidden;">
+            <div style="height:100%;width:${totPct}%;background:#22c55e;border-radius:99px;transition:width .4s;"></div>
+          </div>`;
+      })()}
+    </div>`;
+}
+
+function openVerbouwZone(zoneId) {
+  activeVerbouwZone = zoneId;
+  showView('verbouw-zone');
+}
+
+function renderVerbouwZone() {
+  const z = VERBOUW_ZONES.find(z => z.id === activeVerbouwZone);
+  if (!z) return;
+  document.getElementById('verbouw-zone-title').innerHTML = `${z.icon} ${z.naam}`;
+  const taken = db.verbouwZones?.[z.id] || [];
+  const body = document.getElementById('verbouw-zone-body');
+  const gedaan = taken.filter(t => t.gedaan).length;
+  const pct = taken.length ? Math.round(gedaan/taken.length*100) : 0;
+
+  body.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:8px;">
+        <span>${gedaan} van ${taken.length} taken afgerond</span><span style="font-weight:700;color:${pct===100?'#22c55e':'var(--text)'};">${pct}%</span>
+      </div>
+      <div style="background:var(--border);border-radius:99px;height:8px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:${z.kleur};border-radius:99px;transition:width .4s;"></div>
+      </div>
+    </div>
+    ${!taken.length ? `<div class="empty"><div class="empty-icon">${z.icon}</div><p>Nog geen taken. Voeg er een toe!</p></div>` : ''}
+    <div id="verbouw-taak-lijst">
+      ${taken.map((t,i) => verbouwTaakHtml(z.id, t, i)).join('')}
+    </div>
+    <div id="verbouw-taak-form-wrap"></div>`;
+}
+
+function verbouwTaakHtml(zoneId, t, i) {
+  return `
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;${t.gedaan?'opacity:.6':''}">
+      <input type="checkbox" ${t.gedaan?'checked':''} onchange="toggleVerbouwTaak('${zoneId}',${i},this.checked)"
+        style="width:18px;height:18px;cursor:pointer;accent-color:var(--accent);flex-shrink:0;">
+      <div style="flex:1;">
+        <div style="font-size:14px;font-weight:600;${t.gedaan?'text-decoration:line-through;color:var(--muted)':''}">${t.tekst}</div>
+        ${t.notitie ? `<div style="font-size:12px;color:var(--muted);margin-top:2px;">${t.notitie}</div>` : ''}
+      </div>
+      <button onclick="deleteVerbouwTaak('${zoneId}',${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:2px 4px;line-height:1;" title="Verwijderen">×</button>
+    </div>`;
+}
+
+function toggleVerbouwTaak(zoneId, idx, checked) {
+  if (!db.verbouwZones) db.verbouwZones = {};
+  if (!db.verbouwZones[zoneId]) db.verbouwZones[zoneId] = [];
+  db.verbouwZones[zoneId][idx].gedaan = checked;
+  save(); renderVerbouwZone();
+}
+
+function deleteVerbouwTaak(zoneId, idx) {
+  if (!confirm('Taak verwijderen?')) return;
+  db.verbouwZones[zoneId].splice(idx, 1);
+  save(); renderVerbouwZone();
+}
+
+function openVerbouwTaakForm() {
+  const wrap = document.getElementById('verbouw-taak-form-wrap');
+  wrap.innerHTML = `
+    <div style="background:var(--surface);border:2px solid var(--accent);border-radius:12px;padding:16px;margin-top:12px;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:12px;">Nieuwe taak</div>
+      <div style="margin-bottom:10px;">
+        <input id="nieuw-taak-tekst" placeholder="Taakomschrijving…" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg);color:var(--text);" onkeydown="if(event.key==='Enter')saveVerbouwTaak()">
+      </div>
+      <div style="margin-bottom:12px;">
+        <input id="nieuw-taak-notitie" placeholder="Notitie (optioneel)…" style="width:100%;box-sizing:border-box;padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text);">
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" onclick="saveVerbouwTaak()">Opslaan</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('verbouw-taak-form-wrap').innerHTML=''">Annuleren</button>
+      </div>
+    </div>`;
+  document.getElementById('nieuw-taak-tekst').focus();
+}
+
+function saveVerbouwTaak() {
+  const tekst = document.getElementById('nieuw-taak-tekst').value.trim();
+  if (!tekst) { toast('Vul een taakomschrijving in'); return; }
+  const notitie = document.getElementById('nieuw-taak-notitie').value.trim();
+  if (!db.verbouwZones) db.verbouwZones = {};
+  if (!db.verbouwZones[activeVerbouwZone]) db.verbouwZones[activeVerbouwZone] = [];
+  db.verbouwZones[activeVerbouwZone].push({ tekst, notitie, gedaan: false });
+  save(); renderVerbouwZone();
+}
+
+// ── Verbouwing Kosten ──
+function renderVerbouwKosten() {
+  const kosten = db.verbouwKosten || [];
+  const totGeschat = kosten.reduce((s,k) => s+(k.geschat||0), 0);
+  const totBetaald = kosten.filter(k=>k.betaald).reduce((s,k) => s+(k.geschat||0), 0);
+
+  document.getElementById('verbouw-kosten-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Totaal geschat</div><div class="stat-value">€${Math.round(totGeschat).toLocaleString('nl-NL')}</div><div class="stat-sub">${kosten.length} posten</div></div>
+    <div class="stat-card"><div class="stat-label">Betaald</div><div class="stat-value" style="color:#22c55e;">€${Math.round(totBetaald).toLocaleString('nl-NL')}</div><div class="stat-sub">${kosten.filter(k=>k.betaald).length} posten</div></div>
+    <div class="stat-card"><div class="stat-label">Nog te betalen</div><div class="stat-value" style="color:#f59e0b;">€${Math.round(totGeschat-totBetaald).toLocaleString('nl-NL')}</div><div class="stat-sub">${kosten.filter(k=>!k.betaald).length} open</div></div>`;
+
+  const body = document.getElementById('verbouw-kosten-body');
+  if (!kosten.length) { body.innerHTML = '<div class="empty"><div class="empty-icon">💶</div><p>Nog geen kostenposten</p></div>'; return; }
+
+  // groepeer per zone
+  const perZone = {};
+  kosten.forEach(k => {
+    if (!perZone[k.zone||'overig']) perZone[k.zone||'overig'] = [];
+    perZone[k.zone||'overig'].push(k);
+  });
+
+  body.innerHTML = VERBOUW_ZONES.filter(z => perZone[z.id]).map(z => `
+    <div style="margin-bottom:24px;">
+      <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">${z.icon} ${z.naam}</div>
+      <div class="card">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead><tr style="border-bottom:2px solid var(--border);">
+            <th style="text-align:left;padding:8px 10px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;">Omschrijving</th>
+            <th style="text-align:right;padding:8px 10px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;" class="col-hide-mobile">Geschat</th>
+            <th style="text-align:center;padding:8px 10px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;" class="col-hide-mobile">Betaald</th>
+            <th style="text-align:right;padding:8px 10px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;">Bedrag</th>
+            <th style="width:32px;"></th>
+          </tr></thead>
+          <tbody>
+            ${perZone[z.id].map(k => `
+              <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:10px;font-size:14px;font-weight:600;">${k.omschrijving}</td>
+                <td style="padding:10px;text-align:right;font-size:13px;color:var(--muted);" class="col-hide-mobile">€${Math.round(k.geschat||0).toLocaleString('nl-NL')}</td>
+                <td style="padding:10px;text-align:center;" class="col-hide-mobile">
+                  <input type="checkbox" ${k.betaald?'checked':''} onchange="toggleVerbouwKosten('${k.id}',this.checked)" style="width:16px;height:16px;accent-color:#22c55e;cursor:pointer;">
+                </td>
+                <td style="padding:10px;text-align:right;font-size:14px;font-weight:700;${k.betaald?'color:#22c55e':''}">€${Math.round(k.geschat||0).toLocaleString('nl-NL')}</td>
+                <td style="padding:10px;"><button onclick="deleteVerbouwKosten('${k.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;" title="Verwijderen">×</button></td>
+              </tr>`).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="border-top:2px solid var(--border);">
+              <td colspan="3" style="padding:8px 10px;font-size:12px;font-weight:700;color:var(--muted);">Subtotaal</td>
+              <td style="padding:8px 10px;text-align:right;font-size:14px;font-weight:800;">€${Math.round(perZone[z.id].reduce((s,k)=>s+(k.geschat||0),0)).toLocaleString('nl-NL')}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>`).join('') +
+    (perZone['overig'] ? `<div style="margin-bottom:24px;"><div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">📦 Overig</div></div>` : '');
+}
+
+function toggleVerbouwKosten(id, betaald) {
+  const k = (db.verbouwKosten||[]).find(k=>k.id===id);
+  if (k) { k.betaald = betaald; save(); renderVerbouwKosten(); }
+}
+
+function deleteVerbouwKosten(id) {
+  if (!confirm('Post verwijderen?')) return;
+  db.verbouwKosten = (db.verbouwKosten||[]).filter(k=>k.id!==id);
+  save(); renderVerbouwKosten();
+}
+
+function openVerbouwKostenForm() {
+  const modal = document.getElementById('modal-backdrop');
+  const content = document.getElementById('modal-content');
+  currentModal = 'verbouwkosten';
+  content.innerHTML = `
+    <div class="modal-header"><div class="modal-title">💶 Kostenpost toevoegen</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group full"><label>Omschrijving</label><input id="vk-omschr" placeholder="bijv. Keukenapparatuur, Vloer bar…" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg);color:var(--text);"></div>
+        <div class="form-group"><label>Zone</label>
+          <select id="vk-zone" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg);color:var(--text);">
+            ${VERBOUW_ZONES.map(z=>`<option value="${z.id}">${z.icon} ${z.naam}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group"><label>Geschat bedrag (€)</label><input id="vk-bedrag" type="number" placeholder="0" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg);color:var(--text);"></div>
+        <div class="form-group full"><label>Notitie</label><input id="vk-notitie" placeholder="Optioneel" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg);color:var(--text);"></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveVerbouwKosten()">Opslaan</button><button class="btn btn-ghost" onclick="closeModal()">Annuleren</button></div>`;
+  modal.classList.add('show');
+}
+
+function saveVerbouwKosten() {
+  const omschr = document.getElementById('vk-omschr').value.trim();
+  if (!omschr) { toast('Vul een omschrijving in'); return; }
+  if (!db.verbouwKosten) db.verbouwKosten = [];
+  db.verbouwKosten.push({
+    id: 'k' + Date.now(),
+    omschrijving: omschr,
+    zone: document.getElementById('vk-zone').value,
+    geschat: parseFloat(document.getElementById('vk-bedrag').value) || 0,
+    notitie: document.getElementById('vk-notitie').value.trim(),
+    betaald: false,
+  });
+  save(); closeModal(); renderVerbouwKosten();
+}
+
+// ── Lege stubs voor verwijderde functies (voorkomen JS errors) ──
 function renderTijdlijn() {
   const fases = db.fases || [];
   const body = document.getElementById('tijdlijn-body');
@@ -2959,285 +3191,13 @@ function renderTijdlijn() {
     <div style="font-size:12px;color:var(--muted);margin-top:8px;">▼ rode lijn = vandaag</div>`;
 }
 
-function saveTotaalBudget(val) {
-  if (!db.verbouwing) db.verbouwing = {};
-  db.verbouwing.totaalBudget = parseFloat(val) || 0;
-  save();
-  renderBudget();
-}
+function saveTotaalBudget(val) {}
 
-function renderBudget() {
-  const posten = db.budgetposten || [];
-  const totaalOfferte = posten.reduce((s,p) => s + (p.offerte||0), 0);
-  const totaalWerkelijk = posten.reduce((s,p) => s + (p.werkelijk||0), 0);
-  const totaalBudget = db.verbouwing?.totaalBudget || totaalOfferte;
-  const resterend = totaalBudget - totaalWerkelijk;
-  const pctGebruikt = totaalBudget > 0 ? Math.round(totaalWerkelijk / totaalBudget * 100) : 0;
-
-  // Vul input met huidig totaalbudget
-  const inp = document.getElementById('budget-totaal-input');
-  if (inp && !inp.matches(':focus')) inp.value = db.verbouwing?.totaalBudget || '';
-
-  document.getElementById('budget-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">Totaalbudget</div><div class="stat-value">€${numK(totaalBudget)}</div><div class="stat-sub">ingesteld</div></div>
-    <div class="stat-card"><div class="stat-label">Offertes</div><div class="stat-value">€${numK(totaalOfferte)}</div><div class="stat-sub">gepland</div></div>
-    <div class="stat-card"><div class="stat-label">Uitgegeven</div><div class="stat-value" style="color:${totaalWerkelijk>totaalBudget?'#991b1b':'#166534'}">€${numK(totaalWerkelijk)}</div><div class="stat-sub">${pctGebruikt}% van budget</div></div>
-    <div class="stat-card"><div class="stat-label">${resterend>=0?'Resterend':'Over budget'}</div><div class="stat-value" style="color:${resterend<0?'#991b1b':'#166534'}">${resterend<0?'-':''}€${numK(Math.abs(resterend))}</div><div class="stat-sub">van totaal</div></div>`;
-
-  const body = document.getElementById('budget-body');
-  if (!posten.length) { body.innerHTML = '<div class="empty"><div class="empty-icon">💶</div><p>Nog geen budgetposten</p></div>'; return; }
-
-  // groepeer op categorie
-  const byCat = {};
-  posten.forEach(p => { const k = p.categorie||'Overig'; if(!byCat[k]) byCat[k]=[]; byCat[k].push(p); });
-
-  body.innerHTML = Object.entries(byCat).map(([cat, items]) => {
-    const catOff = items.reduce((s,p)=>s+(p.offerte||0),0);
-    const catWerk = items.reduce((s,p)=>s+(p.werkelijk||0),0);
-    const pct = catOff > 0 ? Math.min(100, catWerk/catOff*100) : 0;
-    const kleur = catWerk > catOff ? '#fca5a5' : '#86efac';
-    return `<div class="budget-cat">
-      <div class="budget-cat-header">
-        <div class="budget-cat-title">${cat}</div>
-        <div style="font-size:12px;color:var(--muted);">€${numK(catWerk)} / €${numK(catOff)}</div>
-      </div>
-      <div class="budget-bar-wrap"><div class="budget-bar-fill" style="width:${pct}%;background:${kleur};"></div></div>
-      <div class="card" style="margin-top:4px;">
-        <table style="width:100%;font-size:13px;border-collapse:collapse;">
-          <thead><tr>
-            <th style="text-align:left;padding:8px 14px;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);font-weight:600;">Omschrijving</th>
-            <th style="text-align:right;padding:8px 14px;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);font-weight:600;">Offerte</th>
-            <th style="text-align:right;padding:8px 14px;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);font-weight:600;">Werkelijk</th>
-            <th style="text-align:right;padding:8px 14px;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);font-weight:600;">Verschil</th>
-            <th style="padding:8px 14px;border-bottom:1px solid var(--border);"></th>
-          </tr></thead>
-          <tbody>${items.map(p => {
-            const diff = (p.werkelijk||0) - (p.offerte||0);
-            return `<tr style="border-bottom:1px solid var(--border);">
-              <td style="padding:9px 14px;cursor:text;" onclick="inlineEdit('budgetposten','${p.id}','naam',this)">
-                ${p.naam}<span class="edit-hint">✏</span>
-              </td>
-              <td style="text-align:right;padding:9px 14px;cursor:text;" onclick="inlineEdit('budgetposten','${p.id}','offerte',this,'number')">
-                €${num(p.offerte||0)}<span class="edit-hint">✏</span>
-              </td>
-              <td style="text-align:right;padding:9px 14px;cursor:text;" onclick="inlineEdit('budgetposten','${p.id}','werkelijk',this,'number')">
-                €${num(p.werkelijk||0)}<span class="edit-hint">✏</span>
-              </td>
-              <td style="text-align:right;padding:9px 14px;font-weight:600;color:${diff>0?'#991b1b':diff<0?'#166534':'var(--muted)'};">${diff>0?'+':''}€${num(diff)}</td>
-              <td style="padding:9px 14px;"><div class="row-actions">
-                <button class="btn btn-ghost btn-sm" onclick="editItem('budgetpost','${p.id}')">✏️</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteItem('budgetpost','${p.id}')">🗑️</button>
-              </div></td>
-            </tr>`;
-          }).join('')}</tbody>
-        </table>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function renderVerbouwTaken() {
-  const taken = db.verbouwtaken || [];
-  const fases = db.fases || [];
-  const body = document.getElementById('verbouw-taken-body');
-
-  if (!taken.length && !fases.length) {
-    body.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><p>Voeg eerst een fase toe via de Tijdlijn, dan kun je taken koppelen.</p></div>';
-    return;
-  }
-
-  // taken zonder fase
-  const losse = taken.filter(t => !t.faseId || !fases.find(f=>f.id===t.faseId));
-  const sections = [...fases.map(f => ({ label: f.naam, color: FASE_KLEUREN[fases.indexOf(f) % FASE_KLEUREN.length], items: taken.filter(t=>t.faseId===f.id) }))];
-  if (losse.length) sections.push({ label: 'Overig', color: '#6b7280', items: losse });
-
-  body.innerHTML = sections.map(sec => {
-    if (!sec.items.length && sec.label !== 'Overig') return `
-      <div class="card" style="padding:14px 20px;margin-bottom:12px;opacity:0.6;">
-        <div style="font-weight:700;font-size:14px;color:${sec.color};margin-bottom:4px;">${sec.label}</div>
-        <div style="font-size:13px;color:var(--muted);">Nog geen taken — <button class="btn btn-ghost btn-sm" onclick="openModalForFase('${sec.label}')">＋ taak toevoegen</button></div>
-      </div>`;
-    const gedaan = sec.items.filter(t=>t.gedaan).length;
-    const pct = sec.items.length ? Math.round(gedaan/sec.items.length*100) : 0;
-    return `<div class="card" style="padding:14px 20px;margin-bottom:12px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <div style="font-weight:700;font-size:14px;color:${sec.color};">${sec.label}</div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:12px;color:var(--muted);">${gedaan}/${sec.items.length} klaar (${pct}%)</span>
-          <button class="btn btn-ghost btn-sm" onclick="openModalForFase('${sec.label}')">＋ taak</button>
-        </div>
-      </div>
-      <div class="budget-bar-wrap"><div class="budget-bar-fill" style="width:${pct}%;background:${sec.color};opacity:0.6;"></div></div>
-      <div class="fase-taken">${sec.items.map(t => `
-        <div class="fase-taak-row">
-          <div class="fase-check ${t.gedaan?'done':''}" onclick="toggleVerbouwTaak('${t.id}')">${t.gedaan?'✓':''}</div>
-          <span style="${t.gedaan?'text-decoration:line-through;color:var(--muted);':''}">${t.naam}</span>
-          ${t.deadline?`<span style="font-size:11px;color:var(--muted);margin-left:auto;">📅 ${t.deadline}</span>`:''}
-          <button class="btn btn-danger btn-sm" style="margin-left:auto;" onclick="deleteItem('verbouwtaak','${t.id}')">🗑️</button>
-        </div>`).join('')}
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function toggleVerbouwTaak(id) {
-  const t = (db.verbouwtaken||[]).find(x=>x.id===id);
-  if (t) { t.gedaan = !t.gedaan; save(); renderVerbouwTaken(); }
-}
-
-function openModalForFase(faseNaam) {
-  const fase = (db.fases||[]).find(f=>f.naam===faseNaam);
-  currentModal='verbouwtaak'; editingId=null; pendingCol=fase?.id||null;
-  buildModal('verbouwtaak',null);
-  document.getElementById('modal').style.display='flex';
-}
-
-const BENODIGDHEDEN_DEFAULTS = [
-  { naam:'Spiraal kneder',              categorie:'Keukenapparatuur', schatting:3000, werkelijk:0, leverancier:'', notities:'', gekocht:false },
-  { naam:'Koelcel',                     categorie:'Keukenapparatuur', schatting:5000, werkelijk:0, leverancier:'', notities:'', gekocht:false },
-  { naam:'Vriezer 1400L',               categorie:'Keukenapparatuur', schatting:1400, werkelijk:0, leverancier:'', notities:'', gekocht:false },
-  { naam:'Klimaatkast 2x',              categorie:'Keukenapparatuur', schatting:2000, werkelijk:0, leverancier:'', notities:'', gekocht:false },
-  { naam:'Vacumeermachine',             categorie:'Keukenapparatuur', schatting:1200, werkelijk:0, leverancier:'', notities:'', gekocht:false },
-  { naam:'Ninja creami 2x',             categorie:'Keukenapparatuur', schatting:300,  werkelijk:0, leverancier:'', notities:'', gekocht:false },
-  { naam:'Thermo - magimix - kitchenaid', categorie:'Keukenapparatuur', schatting:1000, werkelijk:0, leverancier:'', notities:'', gekocht:false },
-  { naam:'Klein keuken materiaal',      categorie:'Klein materiaal',  schatting:2500, werkelijk:0, leverancier:'', notities:'', gekocht:false },
-  { naam:'Borden + bestek',             categorie:'Servies & Bestek', schatting:5000, werkelijk:0, leverancier:'', notities:'', gekocht:false },
-  { naam:'Glaswerk',                    categorie:'Servies & Bestek', schatting:1000, werkelijk:0, leverancier:'', notities:'', gekocht:false },
-  { naam:'Tafels en stoelen',           categorie:'Meubilair',        schatting:10000,werkelijk:0, leverancier:'', notities:'', gekocht:false },
-  { naam:'Pooltafel + dartboard',       categorie:'Meubilair',        schatting:600,  werkelijk:0, leverancier:'', notities:'', gekocht:false },
-];
-
-function renderBenodigdheden() {
-  if (!db.benodigdheden) db.benodigdheden = [];
-  // Laad standaard items in als de lijst leeg is
-  if (db.benodigdheden.length === 0) {
-    db.benodigdheden = BENODIGDHEDEN_DEFAULTS.map(i => ({ id: uid(), ...i }));
-    save();
-  }
-  const items = db.benodigdheden;
-  const stats = document.getElementById('benodigdheden-stats');
-  const body = document.getElementById('benodigdheden-body');
-
-  const totaalSchatting = items.reduce((s,i) => s + (i.schatting||0), 0);
-  const gekocht = items.filter(i => i.gekocht);
-  const totaalWerkelijk = gekocht.reduce((s,i) => s + (i.werkelijk||i.schatting||0), 0);
-  const aantalGekocht = gekocht.length;
-
-  stats.innerHTML = `
-    <div class="stat-card"><div class="stat-value">${items.length}</div><div class="stat-label">Totaal items</div></div>
-    <div class="stat-card"><div class="stat-value">${aantalGekocht} / ${items.length}</div><div class="stat-label">Gekocht</div></div>
-    <div class="stat-card"><div class="stat-value">€${Math.round(totaalSchatting).toLocaleString('nl-NL')}</div><div class="stat-label">Geschat totaal</div></div>
-    <div class="stat-card"><div class="stat-value">€${Math.round(totaalWerkelijk).toLocaleString('nl-NL')}</div><div class="stat-label">Werkelijk uitgegeven</div></div>`;
-
-  if (!items.length) {
-    body.innerHTML = '<div class="empty"><div class="empty-icon">🛒</div><p>Nog geen benodigdheden toegevoegd</p></div>';
-    return;
-  }
-
-  // Groepeer per categorie
-  const cats = [...new Set(items.map(i => i.categorie||'Overig'))].sort();
-  body.innerHTML = cats.map(cat => {
-    const catItems = items.filter(i => (i.categorie||'Overig') === cat);
-    const catSchatting = catItems.reduce((s,i) => s + (i.schatting||0), 0);
-    const catWerkelijk = catItems.filter(i=>i.gekocht).reduce((s,i) => s + (i.werkelijk||i.schatting||0), 0);
-    return `
-    <div style="margin-bottom:28px;">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:8px;">${cat}</div>
-      <div style="background:var(--surface);border-radius:12px;border:1px solid var(--border);overflow:hidden;">
-        <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
-          <colgroup>
-            <col style="width:44px;">
-            <col>
-            <col style="width:150px;">
-            <col style="width:150px;">
-            <col style="width:88px;">
-          </colgroup>
-          <thead><tr style="background:var(--bg);border-bottom:1px solid var(--border);">
-            <th style="padding:10px 12px;"></th>
-            <th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--muted);font-weight:600;">Product</th>
-            <th style="padding:10px 14px;text-align:right;font-size:12px;color:var(--muted);font-weight:600;">Geschatte kosten</th>
-            <th style="padding:10px 14px;text-align:right;font-size:12px;color:var(--muted);font-weight:600;">Werkelijk betaald</th>
-            <th style="padding:10px 12px;"></th>
-          </tr></thead>
-          <tbody>
-            ${catItems.map(item => `
-            <tr style="border-bottom:1px solid var(--border);transition:background .15s;${item.gekocht ? 'background:var(--bg);' : ''}">
-              <td style="padding:11px 12px;text-align:center;vertical-align:middle;">
-                <input type="checkbox" ${item.gekocht?'checked':''} onchange="toggleBenodigdheid('${item.id}',this.checked)"
-                  style="width:17px;height:17px;cursor:pointer;accent-color:var(--accent);">
-              </td>
-              <td style="padding:11px 12px;vertical-align:middle;">
-                <div style="font-size:13px;font-weight:500;${item.gekocht ? 'text-decoration:line-through;color:var(--muted);' : ''}">${item.naam}</div>
-                ${item.notities ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${item.notities}</div>` : ''}
-              </td>
-              <td style="padding:11px 14px;text-align:right;font-size:13px;vertical-align:middle;font-variant-numeric:tabular-nums;">€${num(item.schatting||0)}</td>
-              <td style="padding:11px 14px;text-align:right;font-size:13px;vertical-align:middle;font-variant-numeric:tabular-nums;">
-                ${item.gekocht
-                  ? `<span style="color:var(--accent);font-weight:600;">€${num(item.werkelijk||item.schatting||0)}</span>`
-                  : `<span style="color:var(--muted);">—</span>`}
-              </td>
-              <td style="padding:11px 12px;text-align:right;vertical-align:middle;white-space:nowrap;">
-                <button class="btn btn-ghost btn-sm" onclick="editItem('benodigdheid','${item.id}')" title="Bewerken">✏️</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteItem('benodigdheid','${item.id}')" title="Verwijderen">🗑️</button>
-              </td>
-            </tr>`).join('')}
-          </tbody>
-          <tfoot><tr style="background:var(--bg);border-top:2px solid var(--border);">
-            <td colspan="2" style="padding:10px 12px;font-size:12px;font-weight:600;color:var(--muted);">Subtotaal ${cat}</td>
-            <td style="padding:10px 14px;text-align:right;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;">€${num(catSchatting)}</td>
-            <td style="padding:10px 14px;text-align:right;font-size:13px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;">${catWerkelijk ? `€${num(catWerkelijk)}` : '—'}</td>
-            <td></td>
-          </tr></tfoot>
-        </table>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function toggleBenodigdheid(id, gekocht) {
-  if (!db.benodigdheden) return;
-  const item = db.benodigdheden.find(i => i.id === id);
-  if (!item) return;
-  item.gekocht = gekocht;
-  if (gekocht && !item.werkelijk) {
-    // Vraag om het werkelijke bedrag
-    const inp = prompt(`Hoeveel heb je betaald voor "${item.naam}"? (€ — leeg laten voor schatting €${num(item.schatting)})`, item.schatting || '');
-    if (inp !== null && inp.trim() !== '') {
-      item.werkelijk = parseFloat(inp.replace(',','.')) || item.schatting;
-    } else {
-      item.werkelijk = item.schatting;
-    }
-  }
-  save();
-  renderBenodigdheden();
-  if (gekocht) toast(`✓ ${item.naam} gekocht — €${num(item.werkelijk||item.schatting)}`);
-}
-
-function renderLeveranciers() {
-  const levs = db.leveranciers || [];
-  const body = document.getElementById('leveranciers-body');
-  if (!levs.length) { body.innerHTML = '<div class="empty"><div class="empty-icon">🏢</div><p>Nog geen leveranciers of aannemers</p></div>'; return; }
-  body.innerHTML = levs.map(l => `
-    <div class="lev-card">
-      <div class="lev-avatar">${(l.naam||'?')[0].toUpperCase()}</div>
-      <div class="lev-info">
-        <div class="lev-name" style="cursor:text;" onclick="inlineEdit('leveranciers','${l.id}','naam',this)">${l.naam}<span class="edit-hint">✏</span></div>
-        <div class="lev-role" style="cursor:text;" onclick="inlineEdit('leveranciers','${l.id}','rol',this)">${l.rol||'<span style="color:var(--muted)">+ rol toevoegen</span>'}<span class="edit-hint">✏</span></div>
-        <div class="lev-contact">
-          <span style="cursor:text;" onclick="inlineEdit('leveranciers','${l.id}','telefoon',this)">📞 ${l.telefoon||'+ telefoon'}<span class="edit-hint">✏</span></span>
-          <span style="cursor:text;" onclick="inlineEdit('leveranciers','${l.id}','email',this)">✉️ ${l.email||'+ e-mail'}<span class="edit-hint">✏</span></span>
-          <span style="cursor:text;" onclick="inlineEdit('leveranciers','${l.id}','offerte',this)">💶 ${l.offerte||'+ offerte'}<span class="edit-hint">✏</span></span>
-        </div>
-        <div style="font-size:12px;color:var(--muted);margin-top:6px;cursor:text;" onclick="inlineEdit('leveranciers','${l.id}','notities',this)">${l.notities||'<em>+ notities toevoegen</em>'}<span class="edit-hint">✏</span></div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
-        <select style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--bg);" onchange="inlineSave('leveranciers','${l.id}','status',this.value)">
-          ${['Oriëntatie','In gesprek','Bevestigd','Afgerond'].map(s=>`<option ${(l.status||'Oriëntatie')===s?'selected':''}>${s}</option>`).join('')}
-        </select>
-        <button class="btn btn-danger btn-sm" onclick="deleteItem('leverancier','${l.id}')">🗑️</button>
-      </div>
-    </div>`).join('');
-}
+function renderBudget() {}
+function renderVerbouwTaken() {}
+function renderBenodigdheden() {}
+function toggleBenodigdheid() {}
+function renderLeveranciers() {}
 
 // ════════════════════════════════════════
 // FOH — SPECIALS

@@ -709,8 +709,6 @@
     </div>
     <div class="sidebar-section">
       <div class="sidebar-label">💸 Food Calculator</div>
-      <div class="nav-item" onclick="showView('fc-overview')"><span class="icon">📊</span> Overzicht</div>
-      <div class="nav-item" onclick="showView('fc-ingredienten')"><span class="icon">🥕</span> Ingrediënten</div>
       <div class="nav-item" onclick="showView('fc-recepten')"><span class="icon">📋</span> Recepten</div>
       <div class="nav-item" onclick="showView('fc-gerechten')"><span class="icon">🍽️</span> Gerechten</div>
     </div>
@@ -910,7 +908,7 @@
         </div>
         <div class="view-actions">
           <button class="btn btn-ghost" onclick="autoCategoriseer()" title="Categorieën automatisch invullen op basis van naam">✨ Auto-categoriseer</button>
-          <button class="btn btn-ghost" onclick="showView('fc-ingredienten')" title="Open in Food Calculator">💸 Food Calculator</button>
+          <button class="btn btn-ghost" onclick="showView('fc-recepten')" title="Open in Food Calculator">💸 Food Calculator</button>
           <button class="btn btn-danger" onclick="clearCollection('ingredienten','ingredienten')" style="opacity:.7;">🗑️ Alles wissen</button>
           <button class="btn btn-primary" onclick="openModal('ingredient')">＋ Ingrediënt</button>
         </div>
@@ -1158,25 +1156,10 @@
       <div id="fc-dish-dashboard"></div>
     </div>
 
-    <!-- FOOD CALCULATOR: INGREDIËNTEN -->
-    <div class="view" id="view-fc-ingredienten">
-      <div class="view-header">
-        <div><div class="view-title">🥕 Ingrediënten</div><div class="view-subtitle">Inkoopprijzen, eenheden en food waste</div></div>
-        <div class="view-actions">
-          <input type="text" id="fc-ing-search" placeholder="Zoeken…" oninput="fcRenderIngredients()" style="padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:6px;width:180px;outline:none;background:var(--surface);color:var(--text);" />
-<button class="btn btn-primary" onclick="fcOpenIngModal()">＋ Ingrediënt</button>
-        </div>
-      </div>
-      <div id="fc-ing-wrap"></div>
-    </div>
-
     <!-- FOOD CALCULATOR: RECEPTEN -->
     <div class="view" id="view-fc-recepten">
       <div class="view-header">
-        <div><div class="view-title">📋 Recepten</div><div class="view-subtitle">Bereidingen met kostprijsberekening</div></div>
-        <div class="view-actions">
-<button class="btn btn-primary" onclick="fcOpenRecipeModal()">＋ Recept</button>
-        </div>
+        <div><div class="view-title">📋 Food Cost — Recepten</div><div class="view-subtitle">Selecteer een recept om de kostprijs te berekenen</div></div>
       </div>
       <div id="fc-rec-wrap"></div>
     </div>
@@ -1184,11 +1167,7 @@
     <!-- FOOD CALCULATOR: GERECHTEN -->
     <div class="view" id="view-fc-gerechten">
       <div class="view-header">
-        <div><div class="view-title">🍽️ Gerechten (kostprijs)</div><div class="view-subtitle">Combineer recepten, stel food cost % in</div></div>
-        <div class="view-actions">
-          <button class="btn btn-ghost" onclick="fcExportDishPDF()">🖨️ Print</button>
-          <button class="btn btn-primary" onclick="fcOpenDishModal()">＋ Gerecht</button>
-        </div>
+        <div><div class="view-title">🍽️ Food Cost — Gerechten</div><div class="view-subtitle">Selecteer een gerecht om de food cost te berekenen</div></div>
       </div>
       <div id="fc-dish-wrap"></div>
     </div>
@@ -1445,10 +1424,8 @@ function render(name) {
     'verbouw-zone': renderVerbouwZone,
     'verbouw-kosten': renderVerbouwKosten,
     'verbouw-benodigdheden': renderBenodigdheden,
-    'fc-overview': fcRenderOverview,
-    'fc-ingredienten': fcRenderIngredients,
-    'fc-recepten': fcRenderRecipes,
-    'fc-gerechten': fcRenderDishes,
+    'fc-recepten': fcRenderRecepten,
+    'fc-gerechten': fcRenderGerechten,
   };
   map[name]?.();
 }
@@ -4367,168 +4344,168 @@ function fcDishCost(dish) {
   return t;
 }
 
-function fcRenderAll() { fcRenderOverview(); fcRenderIngredients(); fcRenderRecipes(); fcRenderDishes(); }
+function fcRenderAll() { fcRenderRecepten(); fcRenderGerechten(); }
 
-function fcRenderOverview() {
-  const dishes = fcState.dishes || [];
-  const avgFc = dishes.length ? dishes.reduce((a,d) => a + (d.foodCostPct||30), 0) / dishes.length : 0;
-  const margins = dishes.map(d => { const c = fcDishCost(d), fc = d.foodCostPct||30, s = fc > 0 ? c/(fc/100) : 0; return fcWithBtw(s - c); });
-  const avgMargin = margins.length ? margins.reduce((a,b) => a+b,0)/margins.length : 0;
-  document.getElementById('fc-stats').innerHTML = `
-    <div class="fc-stat"><div class="fc-sl">Gerechten</div><div class="fc-sv">${dishes.length}</div></div>
-    <div class="fc-stat"><div class="fc-sl">Recepten</div><div class="fc-sv">${fcState.recipes.length}</div></div>
-    <div class="fc-stat"><div class="fc-sl">Ingrediënten</div><div class="fc-sv">${fcState.ingredients.length}</div></div>
-    <div class="fc-stat"><div class="fc-sl">Gem. marge${fcBtwActive?' incl. BTW':''}</div><div class="fc-sv">${fcFmt(avgMargin)}</div></div>
-    <div class="fc-stat"><div class="fc-sl">Gem. food cost %</div><div class="fc-sv">${avgFc.toFixed(1)}%</div></div>`;
-  const dash = document.getElementById('fc-dish-dashboard');
-  if (!dishes.length) { dash.innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted)">Nog geen gerechten. Voeg ze toe via Gerechten.</div>`; return; }
-  dash.innerHTML = `<div class="fc-dish-grid">${dishes.map(dish => {
-    const cost = fcDishCost(dish), fc = dish.foodCostPct||30, sell = fc > 0 ? cost/(fc/100) : 0, margin = sell - cost;
-    const comps = [...(dish.recipes||[]).map(l => { const r = fcState.recipes.find(r=>r.id===l.recipeId); return r?`${l.qty}× ${r.name}`:null; }),
-      ...(dish.ingredients||[]).map(l => { const i = fcGetIng(l.ingredientId); return i?`${l.qty}${l.unit} ${i.name}`:null; })].filter(Boolean).join(' · ');
-    return `<div class="fc-dish-card">
-      <div class="fc-dish-card-head"><h3>${esc(dish.name)}</h3><div class="fc-comps">${esc(comps)||'—'}</div></div>
-      <div class="fc-dish-card-body">
-        <div class="fc-metric"><div class="fc-ml">Food Cost</div><div class="fc-mv">${fcFmt(fcWithBtw(cost))}</div></div>
-        <div class="fc-metric"><div class="fc-ml">Verkoopprijs</div><div class="fc-mv">${fcFmt(fcWithBtw(sell))}</div></div>
-        <div class="fc-metric fc-green"><div class="fc-ml">Marge</div><div class="fc-mv">${fcFmt(fcWithBtw(margin))}</div></div>
-      </div>
-      <div class="fc-dish-card-foot">
-        <span style="font-size:11px;font-weight:600;color:var(--muted)">${fc}% FC</span>
-        <div class="fc-bar-wrap"><div class="fc-bar" style="width:${Math.min(fc,100)}%"></div></div>
-        <button class="btn btn-ghost btn-sm" onclick="fcOpenDishModal('${dish.id}')">✏️</button>
-        <button class="btn btn-ghost btn-sm" style="color:var(--accent)" onclick="fcConfirmDelete('dish','${dish.id}','${esc(dish.name)}')">🗑️</button>
-      </div>
-    </div>`; }).join('')}</div>`;
+// ── Kostprijs berekening ──────────────────────────────────────
+function fcKostIngredient(ing) {
+  // ing = {naam, hoeveelheid, eenheid}
+  const dbIng = db.ingredienten.find(i => i.naam.toLowerCase() === (ing.naam||'').toLowerCase());
+  if (!dbIng || !dbIng.prijs) return null;
+  const prijs = parseFloat(dbIng.prijs) || 0;
+  const hoev = parseFloat(ing.hoeveelheid) || 0;
+  return { prijs, hoev, totaal: prijs * hoev, eenheid: ing.eenheid || dbIng.eenheid || '', dbIng };
 }
 
-function fcRenderIngredients() {
-  const wrap = document.getElementById('fc-ing-wrap'); if (!wrap) return;
-  const q = (document.getElementById('fc-ing-search')?.value||'').toLowerCase();
-  const list = [...fcState.ingredients].sort((a,b)=>a.name.localeCompare(b.name,'nl')).filter(i=>!q||i.name.toLowerCase().includes(q)||(i.category||'').toLowerCase().includes(q));
-  if (!list.length) { wrap.innerHTML=`<div style="text-align:center;padding:40px;color:var(--muted)">${q?'Geen resultaten':'Nog geen ingrediënten.'}</div>`; return; }
-  wrap.innerHTML = `<div class="card"><table class="fc-table">
-    <thead><tr><th>Naam</th><th>Categorie</th><th>Leverancier</th><th>Verpakking</th><th>Inkoopprijs</th><th>Waste %</th><th>Kostprijs / eenheid</th><th></th></tr></thead>
-    <tbody>${list.map(ing => {
-      const eff = fcUnitCost(ing), base = ing.qty>0?ing.cost/ing.qty:0;
-      return `<tr>
-        <td><strong>${esc(ing.name)}</strong></td>
-        <td style="color:var(--muted)">${esc(ing.category||'—')}</td>
-        <td style="color:var(--muted)">${esc(ing.supplier||'—')}</td>
-        <td>${ing.qty} ${ing.unit}</td>
-        <td>${fcFmt(ing.cost)}</td>
-        <td style="color:${(ing.waste||0)>0?'var(--accent)':'var(--muted)'};font-weight:${(ing.waste||0)>0?'600':'400'}">${(ing.waste||0)>0?ing.waste+'%':'—'}</td>
-        <td><span class="fc-cost-badge">${fcFmt(eff)} / ${ing.unit}</span>${(ing.waste||0)>0?`<span style="font-size:11px;color:var(--muted);margin-left:6px">(inkoop: ${fcFmt(base)})</span>`:''}</td>
-        <td style="display:flex;gap:4px;justify-content:flex-end">
-          <button class="btn btn-ghost btn-sm" onclick="fcOpenIngModal('${ing.id}')">✏️</button>
-          <button class="btn btn-ghost btn-sm" style="color:var(--accent)" onclick="fcConfirmDelete('ingredient','${ing.id}','${esc(ing.name)}')">🗑️</button>
-        </td>
-      </tr>`; }).join('')}
-    </tbody></table></div>`;
+function fcKostRecept(recept) {
+  return (recept.ingredienten || []).reduce((t, ing) => {
+    const k = fcKostIngredient(ing);
+    return t + (k ? k.totaal : 0);
+  }, 0);
 }
 
-function fcRenderRecipes() {
+function fcKostGerecht(gerecht) {
+  return (gerecht.componenten || []).reduce((t, comp) => {
+    const recept = db.recepten.find(r => r.naam.toLowerCase() === (comp.naam||'').toLowerCase());
+    if (recept) {
+      const k = fcKostRecept(recept);
+      const pp = recept.porties > 0 ? k / recept.porties : k;
+      return t + pp * (parseFloat(comp.hoeveelheid) || 1);
+    }
+    const k = fcKostIngredient(comp);
+    return t + (k ? k.totaal : 0);
+  }, 0);
+}
+
+// ── FC Recepten view ──────────────────────────────────────────
+let fcSelectedRecept = null;
+
+function fcRenderRecepten() {
   const wrap = document.getElementById('fc-rec-wrap'); if (!wrap) return;
-  if (!fcState.recipes.length) { wrap.innerHTML=`<div style="text-align:center;padding:40px;color:var(--muted)">Nog geen recepten.</div>`; return; }
-  wrap.innerHTML = `<div class="card"><table class="fc-table">
-    <thead><tr><th>Naam</th><th>Porties</th><th>Totale kostprijs</th><th>Per portie</th><th>Ingrediënten</th><th></th></tr></thead>
-    <tbody>${fcState.recipes.map(r => {
-      const cost = fcRecipeCost(r), pp = r.portions>0?cost/r.portions:cost;
-      return `<tr>
-        <td><strong>${esc(r.name)}</strong>${r.notes?`<div style="font-size:12px;color:var(--muted)">${esc(r.notes)}</div>`:''}</td>
-        <td>${r.portions}</td>
-        <td><span class="fc-cost-badge">${fcFmt(fcWithBtw(cost))}</span></td>
-        <td>${fcFmt(fcWithBtw(pp))}</td>
-        <td style="font-size:12px;color:var(--muted)">${r.ingredients.length} ing.</td>
-        <td style="display:flex;gap:4px;justify-content:flex-end">
-          <button class="btn btn-ghost btn-sm" onclick="fcOpenRecipeModal('${r.id}')">✏️</button>
-          <button class="btn btn-ghost btn-sm" style="color:var(--accent)" onclick="fcConfirmDelete('recipe','${r.id}','${esc(r.name)}')">🗑️</button>
-        </td>
-      </tr>`; }).join('')}
-    </tbody></table></div>`;
+  const recepten = db.recepten || [];
+  const sel = fcSelectedRecept && recepten.find(r => r.id === fcSelectedRecept) ? fcSelectedRecept : (recepten[0]?.id || null);
+  fcSelectedRecept = sel;
+
+  const dropdownHtml = `
+    <div style="margin-bottom:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <select onchange="fcSelectedRecept=this.value;fcRenderRecepten()"
+        style="padding:9px 14px;font-size:15px;font-weight:600;border:2px solid var(--accent);border-radius:10px;background:var(--surface);color:var(--text);cursor:pointer;min-width:220px;">
+        ${recepten.length ? recepten.map(r => `<option value="${r.id}" ${r.id===sel?'selected':''}>${esc(r.naam)}</option>`).join('') : '<option>— geen recepten —</option>'}
+      </select>
+    </div>`;
+
+  if (!recepten.length) { wrap.innerHTML = dropdownHtml + `<div class="empty"><div class="empty-icon">📋</div><p>Geen recepten gevonden. Voeg ze toe in de Keuken tab.</p></div>`; return; }
+
+  const recept = recepten.find(r => r.id === sel);
+  if (!recept) { wrap.innerHTML = dropdownHtml; return; }
+
+  const ings = recept.ingredienten || [];
+  const totaal = fcKostRecept(recept);
+  const pp = recept.porties > 0 ? totaal / recept.porties : totaal;
+  const missing = ings.filter(ing => !db.ingredienten.find(i => i.naam.toLowerCase() === (ing.naam||'').toLowerCase()) || !parseFloat(db.ingredienten.find(i => i.naam.toLowerCase() === (ing.naam||'').toLowerCase())?.prijs));
+
+  wrap.innerHTML = dropdownHtml + `
+    ${missing.length ? `<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;">
+      ⚠️ <strong>${missing.length} ingrediënt${missing.length>1?'en':''} zonder prijs:</strong> ${missing.map(i=>i.naam).join(', ')}
+      <span style="color:var(--muted);margin-left:6px;">— Voeg prijzen toe in de Ingrediënten lijst</span>
+    </div>` : ''}
+    <div class="card" style="margin-bottom:16px;">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;gap:24px;flex-wrap:wrap;">
+        <div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;">Porties</div><div style="font-size:22px;font-weight:700;">${recept.porties||1}</div></div>
+        <div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;">Food Cost totaal</div><div style="font-size:22px;font-weight:700;">€${totaal.toFixed(2)}</div></div>
+        <div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;">Per portie</div><div style="font-size:22px;font-weight:700;color:var(--accent);">€${pp.toFixed(2)}</div></div>
+      </div>
+      <table class="fc-table">
+        <thead><tr><th>Ingrediënt</th><th>Hoeveelheid</th><th>Prijs/eenheid</th><th>Kostprijs</th></tr></thead>
+        <tbody>${ings.map(ing => {
+          const k = fcKostIngredient(ing);
+          return `<tr>
+            <td><strong>${esc(ing.naam)}</strong>${ing.categorie?`<span style="font-size:11px;color:var(--muted);margin-left:6px">${esc(ing.categorie)}</span>`:''}</td>
+            <td>${ing.hoeveelheid||'—'} ${ing.eenheid||''}</td>
+            <td>${k ? `€${k.prijs.toFixed(2)} / ${k.dbIng.eenheid}` : '<span style="color:var(--muted)">geen prijs</span>'}</td>
+            <td>${k ? `<span class="fc-cost-badge">€${k.totaal.toFixed(2)}</span>` : '—'}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>`;
 }
 
-function fcRenderDishes() {
+// ── FC Gerechten view ─────────────────────────────────────────
+let fcSelectedGerecht = null;
+
+function fcRenderGerechten() {
   const wrap = document.getElementById('fc-dish-wrap'); if (!wrap) return;
-  if (!(fcState.dishes||[]).length) { wrap.innerHTML=`<div style="text-align:center;padding:40px;color:var(--muted)">Nog geen gerechten.</div>`; return; }
-  wrap.innerHTML = `<div class="card"><table class="fc-table">
-    <thead><tr><th>Gerecht</th><th>Recepten</th><th>Food Cost</th><th>FC %</th><th>Verkoopprijs</th><th>Marge</th><th></th></tr></thead>
-    <tbody>${fcState.dishes.map(dish => {
-      const cost = fcDishCost(dish), fc = dish.foodCostPct||30, sell = fc>0?cost/(fc/100):0, margin = sell-cost;
-      return `<tr>
-        <td><strong>${esc(dish.name)}</strong></td>
-        <td style="font-size:12px;color:var(--muted)">${(dish.recipes||[]).map(l=>{const r=fcState.recipes.find(r=>r.id===l.recipeId);return r?`${l.qty}× ${esc(r.name)}`:''}).join(', ')||'—'}</td>
-        <td><span class="fc-cost-badge">${fcFmt(fcWithBtw(cost))}</span></td>
-        <td>
+  const gerechten = db.gerechten || [];
+  const sel = fcSelectedGerecht && gerechten.find(g => g.id === fcSelectedGerecht) ? fcSelectedGerecht : (gerechten[0]?.id || null);
+  fcSelectedGerecht = sel;
+
+  const dropdownHtml = `
+    <div style="margin-bottom:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <select onchange="fcSelectedGerecht=this.value;fcRenderGerechten()"
+        style="padding:9px 14px;font-size:15px;font-weight:600;border:2px solid var(--accent);border-radius:10px;background:var(--surface);color:var(--text);cursor:pointer;min-width:220px;">
+        ${gerechten.length ? gerechten.map(g => `<option value="${g.id}" ${g.id===sel?'selected':''}>${esc(g.naam)}</option>`).join('') : '<option>— geen gerechten —</option>'}
+      </select>
+    </div>`;
+
+  if (!gerechten.length) { wrap.innerHTML = dropdownHtml + `<div class="empty"><div class="empty-icon">🍽️</div><p>Geen gerechten gevonden. Voeg ze toe in de Keuken tab.</p></div>`; return; }
+
+  const gerecht = gerechten.find(g => g.id === sel);
+  if (!gerecht) { wrap.innerHTML = dropdownHtml; return; }
+
+  const foodCost = fcKostGerecht(gerecht);
+  const verkoopprijs = parseFloat(gerecht.prijs) || 0;
+  const marge = verkoopprijs - foodCost;
+  const fcPct = verkoopprijs > 0 ? (foodCost / verkoopprijs * 100) : 0;
+  const comps = gerecht.componenten || [];
+
+  wrap.innerHTML = dropdownHtml + `
+    <div class="card" style="margin-bottom:16px;">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;gap:24px;flex-wrap:wrap;align-items:flex-end;">
+        <div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;">Food Cost</div><div style="font-size:22px;font-weight:700;">€${foodCost.toFixed(2)}</div></div>
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;">Verkoopprijs</div>
           <div style="display:flex;align-items:center;gap:6px;">
-            <input type="range" min="5" max="60" step="1" value="${fc}" oninput="fcUpdateDishFc('${dish.id}',this.value)" style="width:80px;accent-color:var(--accent);" />
-            <span style="font-weight:600;color:var(--accent);min-width:32px" id="fc-fc-lbl-${dish.id}">${fc}%</span>
+            <span style="font-size:18px;font-weight:700;">€</span>
+            <input type="number" step="0.01" value="${verkoopprijs||''}" placeholder="0.00"
+              onchange="fcSetVerkoopprijs('${gerecht.id}',this.value)"
+              style="font-size:18px;font-weight:700;width:90px;border:none;border-bottom:2px solid var(--accent);background:transparent;color:var(--text);outline:none;padding:2px 0;">
           </div>
-        </td>
-        <td style="font-weight:600">${fcFmt(fcWithBtw(sell))}</td>
-        <td style="color:var(--accent);font-weight:600">${fcFmt(fcWithBtw(margin))}</td>
-        <td style="display:flex;gap:4px;justify-content:flex-end">
-          <button class="btn btn-ghost btn-sm" onclick="fcOpenDishModal('${dish.id}')">✏️</button>
-          <button class="btn btn-ghost btn-sm" style="color:var(--accent)" onclick="fcConfirmDelete('dish','${dish.id}','${esc(dish.name)}')">🗑️</button>
-        </td>
-      </tr>`; }).join('')}
-    </tbody></table></div>`;
+        </div>
+        ${verkoopprijs > 0 ? `
+        <div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;">Marge</div><div style="font-size:22px;font-weight:700;color:#22c55e;">€${marge.toFixed(2)}</div></div>
+        <div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;">Food Cost %</div>
+          <div style="font-size:22px;font-weight:700;color:${fcPct>35?'var(--accent)':fcPct>25?'#f59e0b':'#22c55e'}">${fcPct.toFixed(1)}%</div>
+        </div>` : ''}
+      </div>
+      ${comps.length ? `<table class="fc-table">
+        <thead><tr><th>Component</th><th>Hoeveelheid</th><th>Type</th><th>Kostprijs</th></tr></thead>
+        <tbody>${comps.map(comp => {
+          const recept = db.recepten.find(r => r.naam.toLowerCase() === (comp.naam||'').toLowerCase());
+          let kostHtml = '—', typeHtml = '';
+          if (recept) {
+            const k = fcKostRecept(recept);
+            const pp = recept.porties > 0 ? k / recept.porties : k;
+            const deel = pp * (parseFloat(comp.hoeveelheid)||1);
+            kostHtml = `<span class="fc-cost-badge">€${deel.toFixed(2)}</span>`;
+            typeHtml = `<span style="font-size:11px;color:var(--accent);">recept</span>`;
+          } else {
+            const k = fcKostIngredient(comp);
+            kostHtml = k ? `<span class="fc-cost-badge">€${k.totaal.toFixed(2)}</span>` : '<span style="color:var(--muted)">geen prijs</span>';
+            typeHtml = `<span style="font-size:11px;color:var(--muted);">ingrediënt</span>`;
+          }
+          return `<tr>
+            <td><strong>${esc(comp.naam)}</strong></td>
+            <td>${comp.hoeveelheid||'—'} ${comp.eenheid||''}</td>
+            <td>${typeHtml}</td>
+            <td>${kostHtml}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>` : `<div style="padding:20px;color:var(--muted);font-size:13px;">Geen componenten — voeg componenten toe aan het gerecht in de Keuken tab.</div>`}
+    </div>`;
 }
 
-function fcUpdateDishFc(id, val) {
-  const dish = fcState.dishes.find(d=>d.id===id); if (!dish) return;
-  dish.foodCostPct = parseInt(val);
-  const lbl = document.getElementById(`fc-fc-lbl-${id}`); if (lbl) lbl.textContent = val+'%';
-  fcSave();
-}
-
-// ── Import vanuit Keuken ──────────────────────────────────────
-function fcImportIngredienten() {
-  const keukenItems = db.ingredienten || [];
-  if (!keukenItems.length) { toast('Geen keuken-ingrediënten gevonden'); return; }
-  let added = 0, skipped = 0;
-  keukenItems.forEach(ki => {
-    const exists = fcState.ingredients.some(fi => fi.name.toLowerCase() === ki.naam.toLowerCase());
-    if (exists) { skipped++; return; }
-    fcState.ingredients.push({
-      id: uid(),
-      name: ki.naam,
-      category: ki.categorie || '',
-      supplier: ki.leverancier || '',
-      qty: 1,
-      unit: ki.eenheid || 'stuk',
-      cost: parseFloat(ki.prijs) || 0,
-      waste: 0,
-    });
-    added++;
-  });
-  fcSave(); fcRenderIngredients();
-  toast(`✅ ${added} ingrediënten geïmporteerd${skipped ? `, ${skipped} al aanwezig` : ''}`);
-}
-
-function fcImportRecepten() {
-  const keukenRecepten = db.recepten || [];
-  if (!keukenRecepten.length) { toast('Geen keuken-recepten gevonden'); return; }
-  let added = 0, skipped = 0;
-  keukenRecepten.forEach(kr => {
-    const exists = fcState.recipes.some(fr => fr.name.toLowerCase() === kr.naam.toLowerCase());
-    if (exists) { skipped++; return; }
-    // match ingrediënten op naam
-    const ingredients = (kr.ingredienten || []).map(ki => {
-      const fcIng = fcState.ingredients.find(fi => fi.name.toLowerCase() === (ki.naam||'').toLowerCase());
-      return fcIng ? { ingredientId: fcIng.id, qty: parseFloat(ki.hoeveelheid) || 1 } : null;
-    }).filter(Boolean);
-    fcState.recipes.push({
-      id: uid(),
-      name: kr.naam,
-      portions: kr.porties || 1,
-      notes: kr.categorie || '',
-      ingredients,
-    });
-    added++;
-  });
-  fcSave(); fcRenderRecipes();
-  toast(`✅ ${added} recepten geïmporteerd${skipped ? `, ${skipped} al aanwezig` : ''}`);
+function fcSetVerkoopprijs(gerechtenId, val) {
+  const g = db.gerechten.find(g => g.id === gerechtenId);
+  if (g) { g.prijs = parseFloat(val) || 0; save(); fcRenderGerechten(); }
 }
 
 // ── Ingredient modal ──────────────────────────────────────────

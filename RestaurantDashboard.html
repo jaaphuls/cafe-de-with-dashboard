@@ -4478,29 +4478,29 @@ function fcRenderGerechten() {
   if (!gerecht) { wrap.innerHTML = dropdownHtml; return; }
 
   const foodCost = fcKostGerecht(gerecht);
-  const verkoopprijs = parseFloat(gerecht.prijs) || 0;
+  const margePct = gerecht.fcMargePct ?? 70;
+  const verkoopprijs = foodCost > 0 && margePct < 100 ? foodCost / (1 - margePct / 100) : (parseFloat(gerecht.prijs) || 0);
   const marge = verkoopprijs - foodCost;
   const fcPct = verkoopprijs > 0 ? (foodCost / verkoopprijs * 100) : 0;
   const comps = gerecht.componenten || [];
+  const margeKleur = margePct >= 70 ? '#22c55e' : margePct >= 50 ? '#f59e0b' : 'var(--accent)';
 
   wrap.innerHTML = dropdownHtml + `
     <div class="card" style="margin-bottom:16px;">
-      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;gap:24px;flex-wrap:wrap;align-items:flex-end;">
-        <div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;">Food Cost</div><div style="font-size:22px;font-weight:700;">€${foodCost.toFixed(2)}</div></div>
-        <div>
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;">Verkoopprijs</div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:18px;font-weight:700;">€</span>
-            <input type="number" step="0.01" value="${verkoopprijs||''}" placeholder="0.00"
-              onchange="fcSetVerkoopprijs('${gerecht.id}',this.value)"
-              style="font-size:18px;font-weight:700;width:90px;border:none;border-bottom:2px solid var(--accent);background:transparent;color:var(--text);outline:none;padding:2px 0;">
-          </div>
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);">
+        <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-end;margin-bottom:20px;">
+          <div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;">Food Cost</div><div style="font-size:22px;font-weight:700;">€${foodCost.toFixed(2)}</div></div>
+          <div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;">Verkoopprijs</div><div data-fc-live="vp" style="font-size:22px;font-weight:700;color:var(--accent);">€${verkoopprijs.toFixed(2)}</div></div>
+          <div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;">Marge</div><div data-fc-live="marge" style="font-size:22px;font-weight:700;color:${margeKleur};">€${marge.toFixed(2)}</div></div>
+          <div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;">Food Cost %</div><div data-fc-live="fcpct" style="font-size:22px;font-weight:700;color:${fcPct>35?'var(--accent)':fcPct>25?'#f59e0b':'#22c55e'}">${fcPct.toFixed(1)}%</div></div>
         </div>
-        ${verkoopprijs > 0 ? `
-        <div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;">Marge</div><div style="font-size:22px;font-weight:700;color:#22c55e;">€${marge.toFixed(2)}</div></div>
-        <div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;">Food Cost %</div>
-          <div style="font-size:22px;font-weight:700;color:${fcPct>35?'var(--accent)':fcPct>25?'#f59e0b':'#22c55e'}">${fcPct.toFixed(1)}%</div>
-        </div>` : ''}
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+          <div style="font-size:13px;font-weight:700;color:var(--muted);white-space:nowrap;">Marge %</div>
+          <input type="range" min="0" max="99" step="1" value="${margePct}"
+            oninput="fcSetMarge('${gerecht.id}',this.value)"
+            style="flex:1;min-width:160px;max-width:320px;accent-color:${margeKleur};height:6px;cursor:pointer;">
+          <div id="fc-marge-lbl-${gerecht.id}" style="font-size:22px;font-weight:800;color:${margeKleur};min-width:54px;">${margePct}%</div>
+        </div>
       </div>
       ${comps.length ? `<table class="fc-table">
         <thead><tr><th>Component</th><th>Hoeveelheid</th><th>Type</th><th>Kostprijs</th></tr></thead>
@@ -4529,9 +4529,28 @@ function fcRenderGerechten() {
     </div>`;
 }
 
-function fcSetVerkoopprijs(gerechtenId, val) {
-  const g = db.gerechten.find(g => g.id === gerechtenId);
-  if (g) { g.prijs = parseFloat(val) || 0; save(); fcRenderGerechten(); }
+function fcSetMarge(id, val) {
+  const g = db.gerechten.find(g => g.id === id); if (!g) return;
+  g.fcMargePct = parseInt(val);
+  // live update labels without full re-render
+  const foodCost = fcKostGerecht(g);
+  const pct = g.fcMargePct;
+  const vp = foodCost > 0 && pct < 100 ? foodCost / (1 - pct / 100) : 0;
+  const marge = vp - foodCost;
+  const kleur = pct >= 70 ? '#22c55e' : pct >= 50 ? '#f59e0b' : 'var(--accent)';
+  const lbl = document.getElementById(`fc-marge-lbl-${id}`);
+  if (lbl) { lbl.textContent = pct + '%'; lbl.style.color = kleur; }
+  // update summary values
+  const wrap = document.getElementById('fc-dish-wrap');
+  if (wrap) {
+    const vals = wrap.querySelectorAll('[data-fc-live]');
+    vals.forEach(el => {
+      if (el.dataset.fcLive === 'vp') el.textContent = '€' + vp.toFixed(2);
+      if (el.dataset.fcLive === 'marge') { el.textContent = '€' + marge.toFixed(2); el.style.color = kleur; }
+      if (el.dataset.fcLive === 'fcpct') el.textContent = (vp > 0 ? foodCost/vp*100 : 0).toFixed(1) + '%';
+    });
+  }
+  save();
 }
 
 // ── Ingredient modal ──────────────────────────────────────────

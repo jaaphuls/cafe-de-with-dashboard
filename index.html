@@ -687,9 +687,8 @@
     <div class="sidebar-section">
       <div class="sidebar-label">🍳 Keuken</div>
       <div class="nav-item" onclick="showView('menukaart')"><span class="icon">📖</span> Menukaart</div>
-      <div class="nav-item" onclick="showView('gerechten')"><span class="icon">🍽️</span> Gerechten</div>
-      <div class="nav-item" onclick="showView('recepten')"><span class="icon">📋</span> Recepten</div>
-      <div class="nav-item" onclick="showView('ingredienten')"><span class="icon">🥦</span> Ingrediënten</div>
+      <div class="nav-item" onclick="showView('fc-gerechten')"><span class="icon">🍽️</span> Gerechten</div>
+      <div class="nav-item" onclick="showView('fc-recepten')"><span class="icon">📋</span> Recepten</div>
       <div class="nav-item" onclick="showView('rnd')"><span class="icon">🔬</span> R&D</div>
       <div class="nav-item" onclick="showView('inkooplijst')"><span class="icon">🛍️</span> Inkooplijst</div>
       <div class="nav-item" onclick="showView('keuken-schoonmaak')"><span class="icon">🧽</span> Schoonmaak</div>
@@ -5776,7 +5775,7 @@ function globalSearch(q) {
   const ings = (db.ingredienten||[]).filter(i => match(i.naam) || match(i.leverancier) || match(i.categorie));
   if (ings.length) groups.push({ label:'🥕 Ingrediënten', items: ings.slice(0,5).map(i => ({
     icon:'🥕', name:i.naam, sub: [i.leverancier, i.categorie].filter(Boolean).join(' · '),
-    badge:'', action: () => showView('ingredienten')
+    badge:'', action: () => showView('fc-ingredienten')
   }))});
 
   // Menu's

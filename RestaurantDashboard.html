@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Keuken Dashboard — Cafe de With</title>
+  <title>Dashboard — De Salon</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -498,9 +498,9 @@
     #login-pin-screen.show { display:flex; }
     #login-screen.pin-mode #login-user-select { display:none; }
     #login-screen.pin-mode #login-pin-screen { display:flex; }
-    .login-pin-avatar { width:72px; height:72px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:34px; margin-bottom:12px; }
-    .login-pin-name { font-size:20px; font-weight:700; margin-bottom:4px; }
-    .login-pin-rol { font-size:13px; color:var(--muted); margin-bottom:24px; }
+    .login-pin-avatar { width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+    .login-pin-name { font-size:15px; font-weight:700; }
+    .login-pin-rol { font-size:11px; color:var(--muted); }
     .pin-dots { display:flex; gap:12px; margin-bottom:20px; }
     .pin-dot { width:14px; height:14px; border-radius:50%; border:2px solid var(--border); transition:background .1s; }
     .pin-dot.filled { background:var(--accent); border-color:var(--accent); }
@@ -517,9 +517,7 @@
       #login-screen .login-sub { font-size:13px; margin-bottom:24px; text-align:center; }
       .login-select-wrap { max-width:100%; width:280px; }
       #login-screen.pin-mode { justify-content:center; }
-      .login-pin-avatar { width:60px; height:60px; font-size:28px; margin-bottom:8px; }
-      .login-pin-name { font-size:18px; }
-      .login-pin-rol { font-size:12px; margin-bottom:16px; }
+      #lp-user-chip { margin-bottom:16px; }
       .pin-dots { gap:14px; margin-bottom:16px; }
       .pin-dot { width:13px; height:13px; }
       .pin-numpad { width:100%; max-width:280px; gap:10px; }
@@ -540,8 +538,8 @@
 <!-- LOGIN SCREEN -->
 <div id="login-screen">
   <div id="login-user-select" style="display:flex;flex-direction:column;align-items:center;">
-    <div class="login-brand">☕ Cafe de With</div>
-    <div class="login-sub">Keuken Dashboard — Wie ben jij?</div>
+    <div class="login-brand">🍽️ De Salon</div>
+    <div class="login-sub">Restaurant Dashboard — Wie ben jij?</div>
     <div class="login-select-wrap">
       <div class="login-select-avatar" id="login-sel-avatar">👤</div>
       <select class="login-select-dropdown" id="login-user-dropdown" onchange="loginDropdownChange()"></select>
@@ -550,9 +548,13 @@
     </div>
   </div>
   <div id="login-pin-screen">
-    <div class="login-pin-avatar" id="lp-avatar"></div>
-    <div class="login-pin-name" id="lp-name"></div>
-    <div class="login-pin-rol" id="lp-rol"></div>
+    <div id="lp-user-chip" style="display:flex;align-items:center;gap:10px;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:99px;padding:8px 16px 8px 10px;">
+      <div class="login-pin-avatar" id="lp-avatar" style="width:36px;height:36px;font-size:20px;margin:0;"></div>
+      <div>
+        <div class="login-pin-name" id="lp-name" style="font-size:15px;margin:0;"></div>
+        <div class="login-pin-rol" id="lp-rol" style="font-size:11px;margin:0;"></div>
+      </div>
+    </div>
     <div class="pin-dots" id="lp-dots">
       <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
       <div class="pin-dot" id="pd2"></div><div class="pin-dot" id="pd3"></div>
@@ -571,7 +573,7 @@
 <div id="sidebar-overlay" onclick="closeMobileSidebar()"></div>
 <div id="topbar" style="display:none;">
   <button id="hamburger" onclick="toggleMobileSidebar()" title="Menu">☰</button>
-  <div class="brand" onclick="showView('home')" style="cursor:pointer;">☕ Cafe de With <span>Keuken Dashboard</span></div>
+  <div class="brand" onclick="showView('home')" style="cursor:pointer;">🍽️ De Salon <span>Restaurant Dashboard</span></div>
   <div id="global-search-wrap">
     <span id="global-search-icon">🔍</span>
     <input id="global-search" type="search" placeholder="Zoek recepten, gerechten, ingrediënten…" autocomplete="off"
@@ -617,7 +619,7 @@
         <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px;">Algemeen</div>
         <div class="form-group">
           <label>Restaurantnaam</label>
-          <input id="s-naam" placeholder="Cafe de With">
+          <input id="s-naam" placeholder="De Salon">
         </div>
       </div>
 
@@ -696,6 +698,7 @@
       <div class="nav-item" onclick="showView('events')"><span class="icon">🎉</span> Events</div>
       <div class="nav-item" onclick="showView('briefing')"><span class="icon">📢</span> Briefing</div>
       <div class="nav-item" onclick="showView('checklists')"><span class="icon">☑️</span> Open / Sluit</div>
+      <div class="nav-item" onclick="showView('schoonmaak')"><span class="icon">🧹</span> Schoonmaak</div>
     </div>
     <div class="sidebar-section">
       <div class="sidebar-label">🏗️ Verbouwing</div>
@@ -1067,6 +1070,22 @@
     </div>
 
 
+    <!-- SCHOONMAAKLIJSTEN -->
+    <div class="view" id="view-schoonmaak">
+      <div class="view-header">
+        <div>
+          <div class="view-title">🧹 Schoonmaaklijsten</div>
+          <div class="view-subtitle">Wekelijks terugkerende taken</div>
+        </div>
+        <div class="view-actions">
+          <button class="btn btn-ghost" onclick="schoonmaakMissedReport()" title="Gemiste taken vorige week">📋 Vorige week</button>
+          <button class="btn btn-primary" onclick="openSchoonmaakTaakForm()">＋ Taak</button>
+        </div>
+      </div>
+      <div id="schoonmaak-weekbanner"></div>
+      <div id="schoonmaak-body"></div>
+    </div>
+
     <!-- FINANCIËN -->
     <div class="view" id="view-financien">
       <div class="view-header">
@@ -1345,6 +1364,7 @@ function defaultDB() {
     verbouwZones: {},
     verbouwKosten: [],
     checklists: { opening: [], sluiting: [], afgevinkt: {} },
+    schoonmaak: { taken: [], afgevinkt: {}, lastWeekCheck: '' },
     rnd: [],
     taken: [],
     bestellingen: [],
@@ -1395,6 +1415,7 @@ function render(name) {
     events: renderEvents,
     briefing: renderBriefing,
     checklists: renderChecklists,
+    schoonmaak: renderSchoonmaak,
     financien: renderFinancien,
     agenda: renderAgenda,
     'verbouw-overzicht': renderVerbouwOverzicht,
@@ -2495,7 +2516,7 @@ function buildModal(type, item) {
       <div class="form-group"><label>Datum</label><input id="f-datum" type="date" value="${item?.datum||''}"></div>
       <div class="form-group"><label>Tijd</label><input id="f-tijd" type="time" value="${item?.tijd||''}"></div>
       <div class="form-group"><label>Type</label><select id="f-type"><option ${item?.type==='Muziek'?'selected':''}>Muziek</option><option ${item?.type==='Food & Drinks'?'selected':''}>Food & Drinks</option><option ${item?.type==='Privé'?'selected':''}>Privé</option><option ${item?.type==='Thema-avond'?'selected':''}>Thema-avond</option><option ${item?.type==='Workshop'?'selected':''}>Workshop</option><option ${item?.type==='Anders'?'selected':''}>Anders</option></select></div>
-      <div class="form-group"><label>Locatie</label><input id="f-locatie" value="${item?.locatie||'Cafe de With'}"></div>
+      <div class="form-group"><label>Locatie</label><input id="f-locatie" value="${item?.locatie||'De Salon'}"></div>
       <div class="form-group"><label>Max. gasten</label><input id="f-gasten" type="number" value="${item?.max_gasten||''}"></div>
       <div class="form-group full"><label>Beschrijving</label><textarea id="f-desc">${item?.beschrijving||''}</textarea></div>
     </div>`,
@@ -4646,7 +4667,7 @@ function fcExportDishPDF() {
   }).join('');
   const pa=document.getElementById('fc-print-area'); pa.style.display='block';
   pa.innerHTML=`<style>body{font-family:sans-serif}table{width:100%;border-collapse:collapse}th,td{padding:8px 12px;border-bottom:1px solid #eee;text-align:left}th{font-size:11px;text-transform:uppercase;color:#666}h2{color:#b91c1c;margin-bottom:4px}</style>
-    <h2>Food Calculator — Cafe de With</h2><p style="color:#666;font-size:13px;margin-bottom:16px">${new Date().toLocaleDateString('nl-NL')}</p>
+    <h2>Food Calculator — De Salon</h2><p style="color:#666;font-size:13px;margin-bottom:16px">${new Date().toLocaleDateString('nl-NL')}</p>
     <table><thead><tr><th>Gerecht</th><th>Food Cost</th><th>FC %</th><th>Verkoopprijs</th><th>Marge</th></tr></thead><tbody>${rows}</tbody></table>`;
   window.print(); setTimeout(()=>{pa.style.display='none';},1000);
 }
@@ -5008,6 +5029,177 @@ function deleteChecklistItem(idx) {
   if (!editMode) return;
   db.checklists[clActiveTab].splice(idx,1);
   save(); renderChecklistBody();
+}
+
+// ════════════════════════════════════════
+// SCHOONMAAKLIJSTEN (wekelijks)
+// ════════════════════════════════════════
+
+function getWeekKey(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2,'0')}`;
+}
+
+function getPrevWeekKey() {
+  const d = new Date();
+  d.setDate(d.getDate() - 7);
+  return getWeekKey(d);
+}
+
+function schoonmaakCheckNewWeek() {
+  if (!db.schoonmaak) db.schoonmaak = { taken: [], afgevinkt: {}, lastWeekCheck: '' };
+  const thisWeek = getWeekKey(new Date());
+  const lastCheck = db.schoonmaak.lastWeekCheck || '';
+  if (lastCheck && lastCheck !== thisWeek) {
+    // Nieuwe week — check wat er vorige week niet gedaan is
+    const prevWeek = lastCheck;
+    const gedaan = db.schoonmaak.afgevinkt?.[prevWeek] || [];
+    const missed = (db.schoonmaak.taken || []).filter(t => !gedaan.includes(t.id));
+    if (missed.length) {
+      const banner = document.getElementById('schoonmaak-weekbanner');
+      if (banner) {
+        banner.innerHTML = `
+          <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:flex-start;gap:12px;">
+            <span style="font-size:20px;flex-shrink:0;">⚠️</span>
+            <div>
+              <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Vorige week niet afgerond (${prevWeek})</div>
+              <div style="font-size:13px;color:#78350f;">${missed.map(t=>`• ${t.tekst}`).join('<br>')}</div>
+              <button onclick="document.getElementById('schoonmaak-weekbanner').innerHTML=''" style="margin-top:8px;background:none;border:1px solid #f59e0b;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;color:#92400e;">Sluiten</button>
+            </div>
+          </div>`;
+      }
+    }
+  }
+  db.schoonmaak.lastWeekCheck = thisWeek;
+  save();
+}
+
+function renderSchoonmaak() {
+  if (!db.schoonmaak) db.schoonmaak = { taken: [], afgevinkt: {}, lastWeekCheck: '' };
+  schoonmaakCheckNewWeek();
+  const thisWeek = getWeekKey(new Date());
+  const taken = db.schoonmaak.taken || [];
+  const gedaan = db.schoonmaak.afgevinkt?.[thisWeek] || [];
+  const body = document.getElementById('schoonmaak-body');
+
+  const cats = taken.length ? [...new Set(taken.map(t => t.categorie || 'Algemeen'))].sort() : [];
+
+  const weekLabel = (() => {
+    const d = new Date();
+    const ma = new Date(d); ma.setDate(d.getDate() - ((d.getDay()+6)%7));
+    const zo = new Date(ma); zo.setDate(ma.getDate() + 6);
+    const fmt = dt => dt.toLocaleDateString('nl-NL', { day:'numeric', month:'short' });
+    return `${fmt(ma)} – ${fmt(zo)}`;
+  })();
+
+  body.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:13px;">
+        <span style="color:var(--muted);">Week</span> <strong>${thisWeek}</strong> <span style="color:var(--muted);margin-left:6px;">${weekLabel}</span>
+      </div>
+      <div style="font-size:13px;color:var(--muted);">${gedaan.length} / ${taken.length} gedaan</div>
+      <div style="flex:1;background:var(--border);border-radius:99px;height:8px;min-width:80px;">
+        <div style="height:100%;width:${taken.length?Math.round(gedaan.length/taken.length*100):0}%;background:#22c55e;border-radius:99px;transition:width .4s;"></div>
+      </div>
+    </div>
+    ${!taken.length ? `<div class="empty"><div class="empty-icon">🧹</div><p>Nog geen taken. Voeg er een toe!</p></div>` : ''}
+    ${cats.map(cat => {
+      const catTaken = taken.filter(t => (t.categorie||'Algemeen') === cat);
+      return `
+        <div style="margin-bottom:24px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:8px;">${cat}</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            ${catTaken.map(t => {
+              const done = gedaan.includes(t.id);
+              return `
+                <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;${done?'opacity:.55':''}">
+                  <input type="checkbox" ${done?'checked':''} onchange="toggleSchoonmaakTaak('${t.id}',this.checked)"
+                    style="width:18px;height:18px;cursor:pointer;accent-color:#22c55e;flex-shrink:0;">
+                  <div style="flex:1;">
+                    <div style="font-size:14px;font-weight:600;${done?'text-decoration:line-through;color:var(--muted)':''};">${t.tekst}</div>
+                    ${t.notitie?`<div style="font-size:12px;color:var(--muted);margin-top:2px;">${t.notitie}</div>`:''}
+                  </div>
+                  <button onclick="deleteSchoonmaakTaak('${t.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;" title="Verwijderen">×</button>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+    }).join('')}
+    <div id="schoonmaak-taak-form-wrap"></div>`;
+}
+
+function toggleSchoonmaakTaak(id, checked) {
+  const thisWeek = getWeekKey(new Date());
+  if (!db.schoonmaak.afgevinkt) db.schoonmaak.afgevinkt = {};
+  if (!db.schoonmaak.afgevinkt[thisWeek]) db.schoonmaak.afgevinkt[thisWeek] = [];
+  if (checked) {
+    if (!db.schoonmaak.afgevinkt[thisWeek].includes(id)) db.schoonmaak.afgevinkt[thisWeek].push(id);
+  } else {
+    db.schoonmaak.afgevinkt[thisWeek] = db.schoonmaak.afgevinkt[thisWeek].filter(x => x !== id);
+  }
+  save(); renderSchoonmaak();
+}
+
+function deleteSchoonmaakTaak(id) {
+  if (!confirm('Taak verwijderen?')) return;
+  db.schoonmaak.taken = (db.schoonmaak.taken || []).filter(t => t.id !== id);
+  save(); renderSchoonmaak();
+}
+
+function openSchoonmaakTaakForm() {
+  const wrap = document.getElementById('schoonmaak-taak-form-wrap');
+  const cats = [...new Set((db.schoonmaak?.taken||[]).map(t=>t.categorie||'Algemeen'))];
+  wrap.innerHTML = `
+    <div style="background:var(--surface);border:2px solid var(--accent);border-radius:12px;padding:16px;margin-top:12px;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:12px;">Nieuwe schoonmaaktaak</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div style="grid-column:1/-1;">
+          <input id="sm-tekst" placeholder="Taakomschrijving…" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg);color:var(--text);" onkeydown="if(event.key==='Enter')saveSchoonmaakTaak()">
+        </div>
+        <input id="sm-cat" placeholder="Categorie (bijv. Keuken, Bar…)" list="sm-cats-list" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text);">
+        <datalist id="sm-cats-list">${cats.map(c=>`<option value="${c}">`).join('')}</datalist>
+        <input id="sm-notitie" placeholder="Notitie (optioneel)" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text);">
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" onclick="saveSchoonmaakTaak()">Opslaan</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('schoonmaak-taak-form-wrap').innerHTML=''">Annuleren</button>
+      </div>
+    </div>`;
+  document.getElementById('sm-tekst').focus();
+}
+
+function saveSchoonmaakTaak() {
+  const tekst = document.getElementById('sm-tekst').value.trim();
+  if (!tekst) { toast('Vul een omschrijving in'); return; }
+  if (!db.schoonmaak.taken) db.schoonmaak.taken = [];
+  db.schoonmaak.taken.push({
+    id: uid(),
+    tekst,
+    categorie: document.getElementById('sm-cat').value.trim() || 'Algemeen',
+    notitie: document.getElementById('sm-notitie').value.trim(),
+  });
+  save(); renderSchoonmaak();
+}
+
+function schoonmaakMissedReport() {
+  const prevWeek = getPrevWeekKey();
+  const gedaan = db.schoonmaak?.afgevinkt?.[prevWeek] || [];
+  const taken = db.schoonmaak?.taken || [];
+  const missed = taken.filter(t => !gedaan.includes(t.id));
+  if (!missed.length) { toast(`✅ Alles gedaan vorige week (${prevWeek})!`); return; }
+  const banner = document.getElementById('schoonmaak-weekbanner');
+  banner.innerHTML = `
+    <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:flex-start;gap:12px;">
+      <span style="font-size:20px;flex-shrink:0;">📋</span>
+      <div>
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Niet afgerond in ${prevWeek}</div>
+        <div style="font-size:13px;color:#78350f;">${missed.map(t=>`• ${t.tekst}`).join('<br>')}</div>
+        <button onclick="document.getElementById('schoonmaak-weekbanner').innerHTML=''" style="margin-top:8px;background:none;border:1px solid #f59e0b;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;color:#92400e;">Sluiten</button>
+      </div>
+    </div>`;
 }
 
 // ════════════════════════════════════════

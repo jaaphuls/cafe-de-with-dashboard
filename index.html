@@ -4348,13 +4348,38 @@ function fcDishCost(dish) {
 function fcRenderAll() { fcRenderRecepten(); fcRenderGerechten(); }
 
 // ── Kostprijs berekening ──────────────────────────────────────
+function fcNormNaam(s) {
+  // Normalize name: lowercase, strip content in brackets, collapse whitespace
+  return (s||'').toLowerCase().replace(/[\(\[（].*?[\)\]）]/g,'').replace(/\s+/g,' ').trim();
+}
+
+function fcMatchIngredient(naam) {
+  const needle = fcNormNaam(naam);
+  if (!needle) return null;
+  // 1. exact normalized match
+  let hit = db.ingredienten.find(i => fcNormNaam(i.naam) === needle);
+  if (hit) return hit;
+  // 2. starts-with match (e.g. "boter" matches "boter gezouten")
+  hit = db.ingredienten.find(i => fcNormNaam(i.naam).startsWith(needle) || needle.startsWith(fcNormNaam(i.naam)));
+  return hit || null;
+}
+
 function fcKostIngredient(ing) {
   // ing = {naam, hoeveelheid, eenheid}
-  const dbIng = db.ingredienten.find(i => i.naam.toLowerCase() === (ing.naam||'').toLowerCase());
+  const dbIng = fcMatchIngredient(ing.naam);
   if (!dbIng || !dbIng.prijs) return null;
   const prijs = parseFloat(dbIng.prijs) || 0;
   const hoev = parseFloat(ing.hoeveelheid) || 0;
-  return { prijs, hoev, totaal: prijs * hoev, eenheid: ing.eenheid || dbIng.eenheid || '', dbIng };
+  const ingEenheid = (ing.eenheid || dbIng.eenheid || '').trim();
+  const dbEenheid = (dbIng.eenheid || '').trim();
+
+  // Unit conversion: convert recipe quantity to db unit before multiplying
+  const converted = fcConvert(hoev, ingEenheid, dbEenheid);
+  const effectief = converted !== null ? converted : hoev;
+  // prijs is per dbEenheid (e.g. €10 per kg)
+  const totaal = prijs * effectief;
+
+  return { prijs, hoev, totaal, eenheid: ingEenheid, dbEenheid, dbIng, converted };
 }
 
 function fcKostRecept(recept) {

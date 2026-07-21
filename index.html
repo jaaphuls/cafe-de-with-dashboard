@@ -1164,6 +1164,7 @@
         <div><div class="view-title">🥕 Ingrediënten</div><div class="view-subtitle">Inkoopprijzen, eenheden en food waste</div></div>
         <div class="view-actions">
           <input type="text" id="fc-ing-search" placeholder="Zoeken…" oninput="fcRenderIngredients()" style="padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:6px;width:180px;outline:none;background:var(--surface);color:var(--text);" />
+          <button class="btn btn-ghost" onclick="fcImportIngredienten()" title="Importeer ingrediënten vanuit de Keuken tab">📥 Importeer uit Keuken</button>
           <button class="btn btn-primary" onclick="fcOpenIngModal()">＋ Ingrediënt</button>
         </div>
       </div>
@@ -1174,7 +1175,10 @@
     <div class="view" id="view-fc-recepten">
       <div class="view-header">
         <div><div class="view-title">📋 Recepten</div><div class="view-subtitle">Bereidingen met kostprijsberekening</div></div>
-        <div class="view-actions"><button class="btn btn-primary" onclick="fcOpenRecipeModal()">＋ Recept</button></div>
+        <div class="view-actions">
+          <button class="btn btn-ghost" onclick="fcImportRecepten()" title="Importeer recepten vanuit de Keuken tab">📥 Importeer uit Keuken</button>
+          <button class="btn btn-primary" onclick="fcOpenRecipeModal()">＋ Recept</button>
+        </div>
       </div>
       <div id="fc-rec-wrap"></div>
     </div>
@@ -4456,6 +4460,55 @@ function fcUpdateDishFc(id, val) {
   dish.foodCostPct = parseInt(val);
   const lbl = document.getElementById(`fc-fc-lbl-${id}`); if (lbl) lbl.textContent = val+'%';
   fcSave();
+}
+
+// ── Import vanuit Keuken ──────────────────────────────────────
+function fcImportIngredienten() {
+  const keukenItems = db.ingredienten || [];
+  if (!keukenItems.length) { toast('Geen keuken-ingrediënten gevonden'); return; }
+  let added = 0, skipped = 0;
+  keukenItems.forEach(ki => {
+    const exists = fcState.ingredients.some(fi => fi.name.toLowerCase() === ki.naam.toLowerCase());
+    if (exists) { skipped++; return; }
+    fcState.ingredients.push({
+      id: uid(),
+      name: ki.naam,
+      category: ki.categorie || '',
+      supplier: ki.leverancier || '',
+      qty: 1,
+      unit: ki.eenheid || 'stuk',
+      cost: parseFloat(ki.prijs) || 0,
+      waste: 0,
+    });
+    added++;
+  });
+  fcSave(); fcRenderIngredients();
+  toast(`✅ ${added} ingrediënten geïmporteerd${skipped ? `, ${skipped} al aanwezig` : ''}`);
+}
+
+function fcImportRecepten() {
+  const keukenRecepten = db.recepten || [];
+  if (!keukenRecepten.length) { toast('Geen keuken-recepten gevonden'); return; }
+  let added = 0, skipped = 0;
+  keukenRecepten.forEach(kr => {
+    const exists = fcState.recipes.some(fr => fr.name.toLowerCase() === kr.naam.toLowerCase());
+    if (exists) { skipped++; return; }
+    // match ingrediënten op naam
+    const ingredients = (kr.ingredienten || []).map(ki => {
+      const fcIng = fcState.ingredients.find(fi => fi.name.toLowerCase() === (ki.naam||'').toLowerCase());
+      return fcIng ? { ingredientId: fcIng.id, qty: parseFloat(ki.hoeveelheid) || 1 } : null;
+    }).filter(Boolean);
+    fcState.recipes.push({
+      id: uid(),
+      name: kr.naam,
+      portions: kr.porties || 1,
+      notes: kr.categorie || '',
+      ingredients,
+    });
+    added++;
+  });
+  fcSave(); fcRenderRecipes();
+  toast(`✅ ${added} recepten geïmporteerd${skipped ? `, ${skipped} al aanwezig` : ''}`);
 }
 
 // ── Ingredient modal ──────────────────────────────────────────

@@ -699,6 +699,7 @@
       <div class="nav-item" onclick="showView('briefing')"><span class="icon">📢</span> Briefing</div>
       <div class="nav-item" onclick="showView('checklists')"><span class="icon">☑️</span> Open / Sluit</div>
       <div class="nav-item" onclick="showView('schoonmaak')"><span class="icon">🧹</span> Schoonmaak</div>
+      <div class="nav-item" onclick="showView('keuken-schoonmaak')"><span class="icon">🧽</span> Keuken Schoonmaak</div>
     </div>
     <div class="sidebar-section">
       <div class="sidebar-label">🏗️ Verbouwing</div>
@@ -1075,15 +1076,30 @@
       <div class="view-header">
         <div>
           <div class="view-title">🧹 Schoonmaaklijsten</div>
-          <div class="view-subtitle">Wekelijks terugkerende taken</div>
+          <div class="view-subtitle">Wekelijks &amp; maandelijks terugkerende taken</div>
         </div>
         <div class="view-actions">
-          <button class="btn btn-ghost" onclick="schoonmaakMissedReport()" title="Gemiste taken vorige week">📋 Vorige week</button>
-          <button class="btn btn-primary" onclick="openSchoonmaakTaakForm()">＋ Taak</button>
+          <button class="btn btn-ghost" onclick="schoonmaakMissedReport('schoonmaak')" title="Gemiste taken vorige periode">📋 Vorige periode</button>
+          <button class="btn btn-primary" onclick="openSchoonmaakTaakForm('schoonmaak')">＋ Taak</button>
         </div>
       </div>
-      <div id="schoonmaak-weekbanner"></div>
+      <div id="schoonmaak-banner"></div>
       <div id="schoonmaak-body"></div>
+    </div>
+
+    <div class="view" id="view-keuken-schoonmaak">
+      <div class="view-header">
+        <div>
+          <div class="view-title">🧽 Keuken Schoonmaak</div>
+          <div class="view-subtitle">Wekelijks &amp; maandelijks terugkerende taken</div>
+        </div>
+        <div class="view-actions">
+          <button class="btn btn-ghost" onclick="schoonmaakMissedReport('keukenschoonmaak')" title="Gemiste taken vorige periode">📋 Vorige periode</button>
+          <button class="btn btn-primary" onclick="openSchoonmaakTaakForm('keukenschoonmaak')">＋ Taak</button>
+        </div>
+      </div>
+      <div id="keukenschoonmaak-banner"></div>
+      <div id="keukenschoonmaak-body"></div>
     </div>
 
     <!-- FINANCIËN -->
@@ -1364,7 +1380,8 @@ function defaultDB() {
     verbouwZones: {},
     verbouwKosten: [],
     checklists: { opening: [], sluiting: [], afgevinkt: {} },
-    schoonmaak: { taken: [], afgevinkt: {}, lastWeekCheck: '' },
+    schoonmaak: { taken: [], afgevinkt: {}, lastWeekCheck: '', lastMonthCheck: '' },
+    keukenschoonmaak: { taken: [], afgevinkt: {}, lastWeekCheck: '', lastMonthCheck: '' },
     rnd: [],
     taken: [],
     bestellingen: [],
@@ -1415,7 +1432,8 @@ function render(name) {
     events: renderEvents,
     briefing: renderBriefing,
     checklists: renderChecklists,
-    schoonmaak: renderSchoonmaak,
+    schoonmaak: () => renderSchoonmaakView('schoonmaak'),
+    'keuken-schoonmaak': () => renderSchoonmaakView('keukenschoonmaak'),
     financien: renderFinancien,
     agenda: renderAgenda,
     'verbouw-overzicht': renderVerbouwOverzicht,
@@ -3504,6 +3522,8 @@ function hideLoginScreen() {
 function showLoginUsers() {
   lpUserId = null; lpPinBuffer = '';
   document.getElementById('login-screen').classList.remove('pin-mode');
+  document.getElementById('login-user-select').style.display = 'flex';
+  document.getElementById('login-pin-screen').style.display = 'none';
   const users = loadUsers();
   const dropdown = document.getElementById('login-user-dropdown');
   dropdown.innerHTML = users.map(u => `<option value="${u.id}">${u.emoji||'👤'} ${u.naam}</option>`).join('');
@@ -3538,6 +3558,8 @@ function showLoginPin(userId) {
   const u = users.find(x => x.id === userId);
   if (!u) return;
   lpUserId = userId; lpPinBuffer = '';
+  document.getElementById('login-user-select').style.display = 'none';
+  document.getElementById('login-pin-screen').style.display = 'flex';
   document.getElementById('login-screen').classList.add('pin-mode');
   document.getElementById('login-screen').scrollTop = 0;
   const bg = ['#fef2f2','#fff7ed','#faf5ff','#f0fdf4','#eff6ff'][ROLES.indexOf(u.rol)%5];
@@ -5042,165 +5064,217 @@ function getWeekKey(date) {
   const week = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
   return `${d.getUTCFullYear()}-W${String(week).padStart(2,'0')}`;
 }
-
-function getPrevWeekKey() {
-  const d = new Date();
-  d.setDate(d.getDate() - 7);
-  return getWeekKey(d);
+function getMonthKey(date) {
+  return `${date.getFullYear()}-M${String(date.getMonth()+1).padStart(2,'0')}`;
 }
+function getPrevWeekKey() { const d = new Date(); d.setDate(d.getDate()-7); return getWeekKey(d); }
+function getPrevMonthKey() { const d = new Date(); d.setMonth(d.getMonth()-1); return getMonthKey(d); }
 
-function schoonmaakCheckNewWeek() {
-  if (!db.schoonmaak) db.schoonmaak = { taken: [], afgevinkt: {}, lastWeekCheck: '' };
+function schoonmaakCheckPeriod(ctx) {
+  if (!db[ctx]) db[ctx] = { taken:[], afgevinkt:{}, lastWeekCheck:'', lastMonthCheck:'' };
+  const data = db[ctx];
   const thisWeek = getWeekKey(new Date());
-  const lastCheck = db.schoonmaak.lastWeekCheck || '';
-  if (lastCheck && lastCheck !== thisWeek) {
-    // Nieuwe week — check wat er vorige week niet gedaan is
-    const prevWeek = lastCheck;
-    const gedaan = db.schoonmaak.afgevinkt?.[prevWeek] || [];
-    const missed = (db.schoonmaak.taken || []).filter(t => !gedaan.includes(t.id));
+  const thisMonth = getMonthKey(new Date());
+  const bannerId = ctx + '-banner';
+
+  if (data.lastWeekCheck && data.lastWeekCheck !== thisWeek) {
+    const prevWeek = data.lastWeekCheck;
+    const gedaan = data.afgevinkt?.[prevWeek] || [];
+    const missed = (data.taken||[]).filter(t => t.frequentie !== 'maandelijks' && !gedaan.includes(t.id));
     if (missed.length) {
-      const banner = document.getElementById('schoonmaak-weekbanner');
-      if (banner) {
-        banner.innerHTML = `
-          <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:flex-start;gap:12px;">
-            <span style="font-size:20px;flex-shrink:0;">⚠️</span>
-            <div>
-              <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Vorige week niet afgerond (${prevWeek})</div>
-              <div style="font-size:13px;color:#78350f;">${missed.map(t=>`• ${t.tekst}`).join('<br>')}</div>
-              <button onclick="document.getElementById('schoonmaak-weekbanner').innerHTML=''" style="margin-top:8px;background:none;border:1px solid #f59e0b;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;color:#92400e;">Sluiten</button>
-            </div>
-          </div>`;
-      }
+      const banner = document.getElementById(bannerId);
+      if (banner) banner.innerHTML = `
+        <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:flex-start;gap:12px;">
+          <span style="font-size:20px;flex-shrink:0;">⚠️</span>
+          <div>
+            <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Niet afgerond vorige week (${prevWeek})</div>
+            <div style="font-size:13px;color:#78350f;">${missed.map(t=>`• ${t.tekst}`).join('<br>')}</div>
+            <button onclick="document.getElementById('${bannerId}').innerHTML=''" style="margin-top:8px;background:none;border:1px solid #f59e0b;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;color:#92400e;">Sluiten</button>
+          </div>
+        </div>`;
     }
   }
-  db.schoonmaak.lastWeekCheck = thisWeek;
+  data.lastWeekCheck = thisWeek;
+
+  if (data.lastMonthCheck && data.lastMonthCheck !== thisMonth) {
+    const prevMonth = data.lastMonthCheck;
+    const gedaan = data.afgevinkt?.[prevMonth] || [];
+    const missed = (data.taken||[]).filter(t => t.frequentie === 'maandelijks' && !gedaan.includes(t.id));
+    if (missed.length) {
+      const banner = document.getElementById(bannerId);
+      if (banner) banner.innerHTML += `
+        <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:flex-start;gap:12px;">
+          <span style="font-size:20px;flex-shrink:0;">📅</span>
+          <div>
+            <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Niet afgerond vorige maand (${prevMonth})</div>
+            <div style="font-size:13px;color:#78350f;">${missed.map(t=>`• ${t.tekst}`).join('<br>')}</div>
+            <button onclick="this.closest('div').parentElement.remove()" style="margin-top:8px;background:none;border:1px solid #f59e0b;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;color:#92400e;">Sluiten</button>
+          </div>
+        </div>`;
+    }
+  }
+  data.lastMonthCheck = thisMonth;
   save();
 }
 
-function renderSchoonmaak() {
-  if (!db.schoonmaak) db.schoonmaak = { taken: [], afgevinkt: {}, lastWeekCheck: '' };
-  schoonmaakCheckNewWeek();
+function renderSchoonmaakView(ctx) {
+  if (!db[ctx]) db[ctx] = { taken:[], afgevinkt:{}, lastWeekCheck:'', lastMonthCheck:'' };
+  schoonmaakCheckPeriod(ctx);
   const thisWeek = getWeekKey(new Date());
-  const taken = db.schoonmaak.taken || [];
-  const gedaan = db.schoonmaak.afgevinkt?.[thisWeek] || [];
-  const body = document.getElementById('schoonmaak-body');
-
-  const cats = taken.length ? [...new Set(taken.map(t => t.categorie || 'Algemeen'))].sort() : [];
+  const thisMonth = getMonthKey(new Date());
+  const taken = db[ctx].taken || [];
+  const body = document.getElementById(ctx + '-body');
 
   const weekLabel = (() => {
     const d = new Date();
     const ma = new Date(d); ma.setDate(d.getDate() - ((d.getDay()+6)%7));
-    const zo = new Date(ma); zo.setDate(ma.getDate() + 6);
+    const zo = new Date(ma); zo.setDate(ma.getDate()+6);
     const fmt = dt => dt.toLocaleDateString('nl-NL', { day:'numeric', month:'short' });
     return `${fmt(ma)} – ${fmt(zo)}`;
   })();
+  const monthLabel = new Date().toLocaleDateString('nl-NL', { month:'long', year:'numeric' });
+
+  const weekTaken = taken.filter(t => t.frequentie !== 'maandelijks');
+  const maandTaken = taken.filter(t => t.frequentie === 'maandelijks');
+  const weekGedaan = db[ctx].afgevinkt?.[thisWeek] || [];
+  const maandGedaan = db[ctx].afgevinkt?.[thisMonth] || [];
+
+  function renderGroep(label, groepTaken, gedaan, icon) {
+    if (!groepTaken.length) return '';
+    const cats = [...new Set(groepTaken.map(t => t.categorie||'Algemeen'))].sort();
+    const doneCount = groepTaken.filter(t => gedaan.includes(t.id)).length;
+    return `
+      <div style="margin-bottom:28px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+          <div style="font-size:15px;font-weight:700;">${icon} ${label}</div>
+          <div style="font-size:12px;color:var(--muted);">${doneCount}/${groepTaken.length} gedaan</div>
+          <div style="flex:1;background:var(--border);border-radius:99px;height:6px;min-width:60px;">
+            <div style="height:100%;width:${groepTaken.length?Math.round(doneCount/groepTaken.length*100):0}%;background:#22c55e;border-radius:99px;"></div>
+          </div>
+        </div>
+        ${cats.map(cat => {
+          const catTaken = groepTaken.filter(t => (t.categorie||'Algemeen') === cat);
+          return `
+            <div style="margin-bottom:14px;">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:6px;">${cat}</div>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                ${catTaken.map(t => {
+                  const done = gedaan.includes(t.id);
+                  return `
+                    <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;${done?'opacity:.5':''}">
+                      <input type="checkbox" ${done?'checked':''} onchange="toggleSchoonmaakTaak('${ctx}','${t.id}',this.checked,'${t.frequentie||'wekelijks'}')"
+                        style="width:18px;height:18px;cursor:pointer;accent-color:#22c55e;flex-shrink:0;">
+                      <div style="flex:1;">
+                        <div style="font-size:14px;font-weight:600;${done?'text-decoration:line-through;color:var(--muted)':''};">${t.tekst}</div>
+                        ${t.notitie?`<div style="font-size:12px;color:var(--muted);margin-top:2px;">${t.notitie}</div>`:''}
+                      </div>
+                      <button onclick="deleteSchoonmaakTaak('${ctx}','${t.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;" title="Verwijderen">×</button>
+                    </div>`;
+                }).join('')}
+              </div>
+            </div>`;
+        }).join('')}
+      </div>`;
+  }
 
   body.innerHTML = `
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:13px;">
-        <span style="color:var(--muted);">Week</span> <strong>${thisWeek}</strong> <span style="color:var(--muted);margin-left:6px;">${weekLabel}</span>
-      </div>
-      <div style="font-size:13px;color:var(--muted);">${gedaan.length} / ${taken.length} gedaan</div>
-      <div style="flex:1;background:var(--border);border-radius:99px;height:8px;min-width:80px;">
-        <div style="height:100%;width:${taken.length?Math.round(gedaan.length/taken.length*100):0}%;background:#22c55e;border-radius:99px;transition:width .4s;"></div>
-      </div>
-    </div>
     ${!taken.length ? `<div class="empty"><div class="empty-icon">🧹</div><p>Nog geen taken. Voeg er een toe!</p></div>` : ''}
-    ${cats.map(cat => {
-      const catTaken = taken.filter(t => (t.categorie||'Algemeen') === cat);
-      return `
-        <div style="margin-bottom:24px;">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:8px;">${cat}</div>
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            ${catTaken.map(t => {
-              const done = gedaan.includes(t.id);
-              return `
-                <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;${done?'opacity:.55':''}">
-                  <input type="checkbox" ${done?'checked':''} onchange="toggleSchoonmaakTaak('${t.id}',this.checked)"
-                    style="width:18px;height:18px;cursor:pointer;accent-color:#22c55e;flex-shrink:0;">
-                  <div style="flex:1;">
-                    <div style="font-size:14px;font-weight:600;${done?'text-decoration:line-through;color:var(--muted)':''};">${t.tekst}</div>
-                    ${t.notitie?`<div style="font-size:12px;color:var(--muted);margin-top:2px;">${t.notitie}</div>`:''}
-                  </div>
-                  <button onclick="deleteSchoonmaakTaak('${t.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;" title="Verwijderen">×</button>
-                </div>`;
-            }).join('')}
-          </div>
-        </div>`;
-    }).join('')}
-    <div id="schoonmaak-taak-form-wrap"></div>`;
+    ${renderGroep('Wekelijks — ' + weekLabel, weekTaken, weekGedaan, '🗓️')}
+    ${renderGroep('Maandelijks — ' + monthLabel, maandTaken, maandGedaan, '📅')}
+    <div id="${ctx}-taak-form-wrap"></div>`;
 }
 
-function toggleSchoonmaakTaak(id, checked) {
-  const thisWeek = getWeekKey(new Date());
-  if (!db.schoonmaak.afgevinkt) db.schoonmaak.afgevinkt = {};
-  if (!db.schoonmaak.afgevinkt[thisWeek]) db.schoonmaak.afgevinkt[thisWeek] = [];
+function toggleSchoonmaakTaak(ctx, id, checked, freq) {
+  const key = freq === 'maandelijks' ? getMonthKey(new Date()) : getWeekKey(new Date());
+  if (!db[ctx].afgevinkt) db[ctx].afgevinkt = {};
+  if (!db[ctx].afgevinkt[key]) db[ctx].afgevinkt[key] = [];
   if (checked) {
-    if (!db.schoonmaak.afgevinkt[thisWeek].includes(id)) db.schoonmaak.afgevinkt[thisWeek].push(id);
+    if (!db[ctx].afgevinkt[key].includes(id)) db[ctx].afgevinkt[key].push(id);
   } else {
-    db.schoonmaak.afgevinkt[thisWeek] = db.schoonmaak.afgevinkt[thisWeek].filter(x => x !== id);
+    db[ctx].afgevinkt[key] = db[ctx].afgevinkt[key].filter(x => x !== id);
   }
-  save(); renderSchoonmaak();
+  save(); renderSchoonmaakView(ctx);
 }
 
-function deleteSchoonmaakTaak(id) {
+function deleteSchoonmaakTaak(ctx, id) {
   if (!confirm('Taak verwijderen?')) return;
-  db.schoonmaak.taken = (db.schoonmaak.taken || []).filter(t => t.id !== id);
-  save(); renderSchoonmaak();
+  db[ctx].taken = (db[ctx].taken||[]).filter(t => t.id !== id);
+  save(); renderSchoonmaakView(ctx);
 }
 
-function openSchoonmaakTaakForm() {
-  const wrap = document.getElementById('schoonmaak-taak-form-wrap');
-  const cats = [...new Set((db.schoonmaak?.taken||[]).map(t=>t.categorie||'Algemeen'))];
+function openSchoonmaakTaakForm(ctx) {
+  const wrap = document.getElementById(ctx + '-taak-form-wrap');
+  const cats = [...new Set((db[ctx]?.taken||[]).map(t=>t.categorie||'Algemeen'))];
   wrap.innerHTML = `
     <div style="background:var(--surface);border:2px solid var(--accent);border-radius:12px;padding:16px;margin-top:12px;">
       <div style="font-size:13px;font-weight:700;margin-bottom:12px;">Nieuwe schoonmaaktaak</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
         <div style="grid-column:1/-1;">
-          <input id="sm-tekst" placeholder="Taakomschrijving…" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg);color:var(--text);" onkeydown="if(event.key==='Enter')saveSchoonmaakTaak()">
+          <input id="sm-tekst-${ctx}" placeholder="Taakomschrijving…" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg);color:var(--text);" onkeydown="if(event.key==='Enter')saveSchoonmaakTaak('${ctx}')">
         </div>
-        <input id="sm-cat" placeholder="Categorie (bijv. Keuken, Bar…)" list="sm-cats-list" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text);">
-        <datalist id="sm-cats-list">${cats.map(c=>`<option value="${c}">`).join('')}</datalist>
-        <input id="sm-notitie" placeholder="Notitie (optioneel)" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text);">
+        <input id="sm-cat-${ctx}" placeholder="Categorie…" list="sm-cats-list-${ctx}" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text);">
+        <datalist id="sm-cats-list-${ctx}">${cats.map(c=>`<option value="${c}">`).join('')}</datalist>
+        <select id="sm-freq-${ctx}" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text);">
+          <option value="wekelijks">🗓️ Wekelijks</option>
+          <option value="maandelijks">📅 Maandelijks</option>
+        </select>
+        <div style="grid-column:1/-1;">
+          <input id="sm-notitie-${ctx}" placeholder="Notitie (optioneel)" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text);">
+        </div>
       </div>
       <div style="display:flex;gap:8px;">
-        <button class="btn btn-primary" onclick="saveSchoonmaakTaak()">Opslaan</button>
-        <button class="btn btn-ghost" onclick="document.getElementById('schoonmaak-taak-form-wrap').innerHTML=''">Annuleren</button>
+        <button class="btn btn-primary" onclick="saveSchoonmaakTaak('${ctx}')">Opslaan</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('${ctx}-taak-form-wrap').innerHTML=''">Annuleren</button>
       </div>
     </div>`;
-  document.getElementById('sm-tekst').focus();
+  document.getElementById(`sm-tekst-${ctx}`).focus();
 }
 
-function saveSchoonmaakTaak() {
-  const tekst = document.getElementById('sm-tekst').value.trim();
+function saveSchoonmaakTaak(ctx) {
+  const tekst = document.getElementById(`sm-tekst-${ctx}`).value.trim();
   if (!tekst) { toast('Vul een omschrijving in'); return; }
-  if (!db.schoonmaak.taken) db.schoonmaak.taken = [];
-  db.schoonmaak.taken.push({
+  if (!db[ctx].taken) db[ctx].taken = [];
+  db[ctx].taken.push({
     id: uid(),
     tekst,
-    categorie: document.getElementById('sm-cat').value.trim() || 'Algemeen',
-    notitie: document.getElementById('sm-notitie').value.trim(),
+    categorie: document.getElementById(`sm-cat-${ctx}`).value.trim() || 'Algemeen',
+    frequentie: document.getElementById(`sm-freq-${ctx}`).value,
+    notitie: document.getElementById(`sm-notitie-${ctx}`).value.trim(),
   });
-  save(); renderSchoonmaak();
+  save(); renderSchoonmaakView(ctx);
 }
 
-function schoonmaakMissedReport() {
+function schoonmaakMissedReport(ctx) {
   const prevWeek = getPrevWeekKey();
-  const gedaan = db.schoonmaak?.afgevinkt?.[prevWeek] || [];
-  const taken = db.schoonmaak?.taken || [];
-  const missed = taken.filter(t => !gedaan.includes(t.id));
-  if (!missed.length) { toast(`✅ Alles gedaan vorige week (${prevWeek})!`); return; }
-  const banner = document.getElementById('schoonmaak-weekbanner');
-  banner.innerHTML = `
-    <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:flex-start;gap:12px;">
-      <span style="font-size:20px;flex-shrink:0;">📋</span>
+  const prevMonth = getPrevMonthKey();
+  const data = db[ctx] || {};
+  const taken = data.taken || [];
+  const missedWeek = taken.filter(t => t.frequentie !== 'maandelijks' && !(data.afgevinkt?.[prevWeek]||[]).includes(t.id));
+  const missedMonth = taken.filter(t => t.frequentie === 'maandelijks' && !(data.afgevinkt?.[prevMonth]||[]).includes(t.id));
+  if (!missedWeek.length && !missedMonth.length) { toast('✅ Alles afgerond in de vorige periode!'); return; }
+  const bannerId = ctx + '-banner';
+  const banner = document.getElementById(bannerId);
+  let html = '';
+  if (missedWeek.length) html += `
+    <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:flex-start;gap:12px;">
+      <span style="font-size:20px;">⚠️</span>
       <div>
-        <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Niet afgerond in ${prevWeek}</div>
-        <div style="font-size:13px;color:#78350f;">${missed.map(t=>`• ${t.tekst}`).join('<br>')}</div>
-        <button onclick="document.getElementById('schoonmaak-weekbanner').innerHTML=''" style="margin-top:8px;background:none;border:1px solid #f59e0b;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;color:#92400e;">Sluiten</button>
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Niet gedaan vorige week (${prevWeek})</div>
+        <div style="font-size:13px;color:#78350f;">${missedWeek.map(t=>`• ${t.tekst}`).join('<br>')}</div>
       </div>
     </div>`;
+  if (missedMonth.length) html += `
+    <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:flex-start;gap:12px;">
+      <span style="font-size:20px;">📅</span>
+      <div>
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Niet gedaan vorige maand (${prevMonth})</div>
+        <div style="font-size:13px;color:#78350f;">${missedMonth.map(t=>`• ${t.tekst}`).join('<br>')}</div>
+      </div>
+    </div>`;
+  html += `<button onclick="document.getElementById('${bannerId}').innerHTML=''" style="margin-bottom:12px;background:none;border:1px solid var(--border);border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;color:var(--muted);">Sluiten</button>`;
+  banner.innerHTML = html;
 }
+
 
 // ════════════════════════════════════════
 // AUTO-CATEGORISATIE INGREDIËNTEN

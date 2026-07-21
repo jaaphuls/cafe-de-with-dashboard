@@ -4267,6 +4267,7 @@ function keukenParseAnytypeMD(text, filename, counts, done) {
 // FOOD CALCULATOR
 // ════════════════════════════════════════
 const FC_KEY = 'foodcalc';
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 let _fcDishes = [], _fcCurrency = '€';
 const fcState = {
   get ingredients() { return db.ingredienten.map(i => ({...i, name:i.naam, category:i.categorie||'', supplier:i.leverancier||'', qty:i.qty||1, unit:i.eenheid||'stuk', cost:parseFloat(i.prijs)||0, waste:i.waste||0})); },

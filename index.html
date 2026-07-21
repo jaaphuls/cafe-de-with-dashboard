@@ -1164,8 +1164,7 @@
         <div><div class="view-title">🥕 Ingrediënten</div><div class="view-subtitle">Inkoopprijzen, eenheden en food waste</div></div>
         <div class="view-actions">
           <input type="text" id="fc-ing-search" placeholder="Zoeken…" oninput="fcRenderIngredients()" style="padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:6px;width:180px;outline:none;background:var(--surface);color:var(--text);" />
-          <button class="btn btn-ghost" onclick="fcImportIngredienten()" title="Importeer ingrediënten vanuit de Keuken tab">📥 Importeer uit Keuken</button>
-          <button class="btn btn-primary" onclick="fcOpenIngModal()">＋ Ingrediënt</button>
+<button class="btn btn-primary" onclick="fcOpenIngModal()">＋ Ingrediënt</button>
         </div>
       </div>
       <div id="fc-ing-wrap"></div>
@@ -1176,8 +1175,7 @@
       <div class="view-header">
         <div><div class="view-title">📋 Recepten</div><div class="view-subtitle">Bereidingen met kostprijsberekening</div></div>
         <div class="view-actions">
-          <button class="btn btn-ghost" onclick="fcImportRecepten()" title="Importeer recepten vanuit de Keuken tab">📥 Importeer uit Keuken</button>
-          <button class="btn btn-primary" onclick="fcOpenRecipeModal()">＋ Recept</button>
+<button class="btn btn-primary" onclick="fcOpenRecipeModal()">＋ Recept</button>
         </div>
       </div>
       <div id="fc-rec-wrap"></div>
@@ -4292,13 +4290,35 @@ function keukenParseAnytypeMD(text, filename, counts, done) {
 // FOOD CALCULATOR
 // ════════════════════════════════════════
 const FC_KEY = 'foodcalc';
-let fcState = { ingredients: [], recipes: [], dishes: [], currency: '€' };
+let _fcDishes = [], _fcCurrency = '€';
+const fcState = {
+  get ingredients() { return db.ingredienten.map(i => ({...i, name:i.naam, category:i.categorie||'', supplier:i.leverancier||'', qty:i.qty||1, unit:i.eenheid||'stuk', cost:parseFloat(i.prijs)||0, waste:i.waste||0})); },
+  get recipes() { return db.recepten.map(r => ({...r, name:r.naam, portions:r.porties||1, notes:r.categorie||'', ingredients:r.fcIngredienten||[]})); },
+  get dishes() { return _fcDishes; },
+  set dishes(v) { _fcDishes = v; },
+  get currency() { return _fcCurrency; },
+  set currency(v) { _fcCurrency = v; },
+};
 let fcBtwActive = false;
 let fcEditIngId = null, fcEditRecId = null, fcEditDishId = null;
 let fcRecIngLines = [], fcDishRecLines = [], fcDishIngLines = [];
 
-function fcSave() { try { localStorage.setItem(FC_KEY, JSON.stringify(fcState)); } catch(e) {} }
-function fcLoad() { try { const r = localStorage.getItem(FC_KEY); if (r) fcState = JSON.parse(r); } catch(e) {} }
+function fcSave() { try { localStorage.setItem(FC_KEY, JSON.stringify({dishes:_fcDishes,currency:_fcCurrency})); } catch(e) {} save(); }
+function fcLoad() {
+  try {
+    const raw = localStorage.getItem(FC_KEY); if (!raw) return;
+    const d = JSON.parse(raw);
+    _fcDishes = d.dishes || [];
+    if (d.currency) _fcCurrency = d.currency;
+    // Migreer oude FC-data naar db als db leeg is
+    if (d.ingredients?.length && !db.ingredienten.length) {
+      d.ingredients.forEach(i => db.ingredienten.push({id:i.id,naam:i.name,categorie:i.category||'',leverancier:i.supplier||'',prijs:i.cost||0,eenheid:i.unit||'stuk',qty:i.qty||1,waste:i.waste||0,voorraad:'OK'}));
+    }
+    if (d.recipes?.length && !db.recepten.length) {
+      d.recipes.forEach(r => db.recepten.push({id:r.id,naam:r.name,porties:r.portions||1,categorie:r.notes||'',fcIngredienten:r.ingredients||[],ingredienten:[],stappen:[],updated:new Date().toISOString()}));
+    }
+  } catch(e) {}
+}
 
 function fcToggleBtw() {
   fcBtwActive = !fcBtwActive;
@@ -4554,9 +4574,10 @@ function fcSaveIngredient() {
   if (isNaN(cost)||cost<0) { toast('Vul een geldige prijs in.'); return; }
   if (isNaN(qty)||qty<=0) { toast('Vul een geldige hoeveelheid in.'); return; }
   if (fcEditIngId) {
-    const ing=fcGetIng(fcEditIngId); if(ing) Object.assign(ing,{name,cost,qty,unit,waste,supplier,category});
+    const ing=db.ingredienten.find(i=>i.id===fcEditIngId);
+    if(ing) Object.assign(ing,{naam:name,prijs:cost,qty,eenheid:unit,waste,leverancier:supplier,categorie:category});
   } else {
-    fcState.ingredients.push({id:uid(),name,cost,qty,unit,waste,supplier,category});
+    db.ingredienten.push({id:uid(),naam:name,prijs:cost,qty,eenheid:unit,waste,leverancier:supplier,categorie:category,voorraad:'OK'});
   }
   fcSave(); fcCloseModal('fc-ing-modal'); fcRenderAll(); toast(fcEditIngId?'Bijgewerkt.':'Ingrediënt toegevoegd.');
 }
@@ -4618,8 +4639,11 @@ function fcSaveRecipe() {
   if (!name) { toast('Vul een naam in.'); return; }
   if (!fcRecIngLines.length) { toast('Voeg minimaal één ingrediënt toe.'); return; }
   if (fcEditRecId) {
-    const r=fcState.recipes.find(r=>r.id===fcEditRecId); if(r) Object.assign(r,{name,portions,notes,ingredients:[...fcRecIngLines]});
-  } else { fcState.recipes.push({id:uid(),name,portions,notes,ingredients:[...fcRecIngLines]}); }
+    const r=db.recepten.find(r=>r.id===fcEditRecId);
+    if(r) Object.assign(r,{naam:name,porties:portions,fcIngredienten:[...fcRecIngLines],updated:new Date().toISOString()});
+  } else {
+    db.recepten.push({id:uid(),naam:name,porties:portions,categorie:notes,fcIngredienten:[...fcRecIngLines],ingredienten:[],stappen:[],updated:new Date().toISOString()});
+  }
   fcSave(); fcCloseModal('fc-rec-modal'); fcRenderAll(); toast(fcEditRecId?'Bijgewerkt.':'Recept opgeslagen.');
 }
 
@@ -4723,13 +4747,13 @@ function fcConfirmDelete(type, id, name) {
   document.getElementById('fc-confirm-msg').textContent = `Weet je zeker dat je "${name}" wilt verwijderen?`;
   document.getElementById('fc-confirm-ok').onclick = () => {
     if (type==='ingredient') {
-      fcState.ingredients=fcState.ingredients.filter(i=>i.id!==id);
-      fcState.recipes.forEach(r=>{r.ingredients=r.ingredients.filter(l=>l.ingredientId!==id);});
+      db.ingredienten=db.ingredienten.filter(i=>i.id!==id);
+      db.recepten.forEach(r=>{r.fcIngredienten=(r.fcIngredienten||[]).filter(l=>l.ingredientId!==id);});
     } else if (type==='recipe') {
-      fcState.recipes=fcState.recipes.filter(r=>r.id!==id);
-      (fcState.dishes||[]).forEach(d=>{d.recipes=d.recipes.filter(l=>l.recipeId!==id);});
+      db.recepten=db.recepten.filter(r=>r.id!==id);
+      _fcDishes.forEach(d=>{d.recipes=d.recipes.filter(l=>l.recipeId!==id);});
     } else if (type==='dish') {
-      fcState.dishes=fcState.dishes.filter(d=>d.id!==id);
+      _fcDishes=_fcDishes.filter(d=>d.id!==id);
     }
     fcSave(); fcCloseModal('fc-confirm-modal'); fcRenderAll(); toast('Verwijderd.');
   };
@@ -4915,9 +4939,11 @@ function fcImportData(event) {
     try {
       const imported = JSON.parse(e.target.result);
       if (!imported.ingredients || !imported.recipes) throw new Error('Ongeldig formaat');
-      fcState = imported; if (!fcState.dishes) fcState.dishes = [];
+      if (imported.ingredients) imported.ingredients.forEach(i => { if (!db.ingredienten.find(x=>x.id===i.id)) db.ingredienten.push({id:i.id,naam:i.name,categorie:i.category||'',leverancier:i.supplier||'',prijs:i.cost||0,eenheid:i.unit||'stuk',qty:i.qty||1,waste:i.waste||0,voorraad:'OK'}); });
+      if (imported.recipes) imported.recipes.forEach(r => { if (!db.recepten.find(x=>x.id===r.id)) db.recepten.push({id:r.id,naam:r.name,porties:r.portions||1,categorie:r.notes||'',fcIngredienten:r.ingredients||[],ingredienten:[],stappen:[],updated:new Date().toISOString()}); });
+      _fcDishes = imported.dishes || [];
       fcSave(); fcRenderAll();
-      toast(`Geïmporteerd: ${fcState.ingredients.length} ingrediënten, ${fcState.recipes.length} recepten, ${fcState.dishes.length} gerechten.`);
+      toast(`Geïmporteerd: ${fcState.ingredients.length} ingrediënten, ${fcState.recipes.length} recepten, ${_fcDishes.length} gerechten.`);
     } catch { toast('Ongeldig JSON bestand.'); }
   };
   reader.readAsText(file); event.target.value = '';

@@ -1350,6 +1350,7 @@
 const KEY = 'cdw_v5';
 const ALLERGENEN = ['Gluten','Lactose','Noten','Ei','Soja','Selderij','Mosterd','Sesam','Vis','Schaal- en schelpdieren','Sulfiet'];
 const CATS_MENU = ['Ontbijt','Brunch','Lunch','Borrelen','Diner','Dessert','Dranken','Kids'];
+const CATS_GERECHT = ['Snack','Voorgerecht','Hoofdgerecht','Dessert','Pizza','Side','Special'];
 const CATS_RECEPT = ['Saus','Bouillon / jus','Puree','Deeg / beslag','Vlees','Vis','Groente','Dessert','Marinade','Overig'];
 const CATS_RECEPT_COLORS = {
   'Saus':           'background:#fce7f3;color:#9d174d;',
@@ -1916,7 +1917,7 @@ function openMenuEditor(id) {
   document.getElementById('me-tot').value = m?.tot || '';
   document.getElementById('me-desc').value = m?.beschrijving || '';
 
-  meSections = m?.secties ? m.secties.map(s => ({naam:s.naam, gerechten:[...s.gerechten]})) : [{naam:'Snacks', gerechten:[]},{naam:'Voorgerecht', gerechten:[]},{naam:'Hoofdgerecht', gerechten:[]},{naam:'Pizza', gerechten:[]},{naam:'Nagerecht', gerechten:[]}];
+  meSections = m?.secties ? m.secties.map(s => ({naam:s.naam, gerechten:[...s.gerechten]})) : [{naam:'Snack', gerechten:[]},{naam:'Voorgerecht', gerechten:[]},{naam:'Hoofdgerecht', gerechten:[]},{naam:'Pizza', gerechten:[]},{naam:'Dessert', gerechten:[]},{naam:'Side', gerechten:[]}];
 
   document.getElementById('menu-editor-overlay').style.display = 'block';
   renderMeSections();
@@ -2467,7 +2468,7 @@ function buildModal(type, item) {
   const forms = {
     gerecht: `<div class="form-grid">
       <div class="form-group full"><label>Naam</label><input id="f-naam" value="${item?.naam||''}"></div>
-      <div class="form-group"><label>Categorie</label><select id="f-cat">${CATS_MENU.map(c=>`<option ${item?.categorie===c?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="form-group"><label>Categorie</label><select id="f-cat">${CATS_GERECHT.map(c=>`<option ${item?.categorie===c?'selected':''}>${c}</option>`).join('')}</select></div>
       <div class="form-group"><label>Status</label><select id="f-status"><option ${item?.status==='Op kaart'?'selected':''}>Op kaart</option><option ${item?.status==='Seizoen'?'selected':''}>Seizoen</option><option ${item?.status==='Inactief'?'selected':''}>Inactief</option></select></div>
       <div class="form-group"><label>Verkoopprijs (€)</label><input id="f-prijs" type="number" step="0.01" value="${item?.prijs||''}"></div>
       <div class="form-group"><label>Kostprijs (€)</label><input id="f-kostprijs" type="number" step="0.01" value="${item?.kostprijs||''}"></div>

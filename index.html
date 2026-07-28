@@ -2653,13 +2653,38 @@ function addIngLinked() { modalIngredients.push({ type:'subrecept', receptId:'',
 // ── Componenten helpers (gerechten) ──
 let currentBordfoto = undefined;
 function compRowHtml(c, i) {
+  const receptOptions = db.recepten.map(r =>
+    `<option value="${r.id}" ${c.receptId===r.id?'selected':''}>${esc(r.naam)}</option>`
+  ).join('');
+  const isLinked = !!c.receptId;
   return `<tr style="border-bottom:1px solid var(--border);">
-    <td style="padding:4px 4px;"><input value="${c.naam||''}" placeholder="Bijv. Meiknol" style="width:100%;font-size:13px;border:none;background:transparent;color:var(--text);" oninput="modalComponents[${i}].naam=this.value"></td>
+    <td style="padding:4px 4px;">
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        <div style="display:flex;align-items:center;gap:4px;">
+          <select style="font-size:11px;padding:2px 4px;border:1px solid var(--border);border-radius:5px;background:var(--surface);color:var(--muted);max-width:140px;"
+            onchange="compLinkRecept(${i},this.value)">
+            <option value="">📋 Recept…</option>
+            ${receptOptions}
+          </select>
+          ${isLinked ? `<span style="font-size:10px;background:var(--accent-light);color:var(--accent);border-radius:4px;padding:1px 5px;white-space:nowrap;">gekoppeld</span>` : ''}
+        </div>
+        <input value="${esc(c.naam||'')}" placeholder="Bijv. Chimichurri" style="width:100%;font-size:13px;border:none;background:transparent;color:var(--text);"
+          oninput="modalComponents[${i}].naam=this.value;modalComponents[${i}].receptId=null;rebuildComps()">
+      </div>
+    </td>
     <td style="padding:4px 4px;"><input value="${c.hoeveelheid||''}" placeholder="—" style="width:100%;font-size:13px;border:none;background:transparent;color:var(--text);text-align:right;" oninput="modalComponents[${i}].hoeveelheid=this.value"></td>
     <td style="padding:4px 4px;"><input value="${c.eenheid||''}" placeholder="gr / st" style="width:100%;font-size:13px;border:none;background:transparent;color:var(--text);" oninput="modalComponents[${i}].eenheid=this.value"></td>
     <td style="padding:4px 4px;"><input value="${c.bereiding||''}" placeholder="bijv. insmeren" style="width:100%;font-size:13px;border:none;background:transparent;color:var(--text);" oninput="modalComponents[${i}].bereiding=this.value"></td>
     <td style="padding:4px 2px;text-align:center;"><button class="btn btn-danger btn-sm" style="padding:2px 6px;" onclick="removeComp(${i})">✕</button></td>
   </tr>`;
+}
+function compLinkRecept(i, receptId) {
+  if (!receptId) { modalComponents[i].receptId = null; rebuildComps(); return; }
+  const r = db.recepten.find(r => r.id === receptId);
+  if (!r) return;
+  modalComponents[i].receptId = receptId;
+  modalComponents[i].naam = r.naam;
+  rebuildComps();
 }
 function opmaakStapHtml(s, i) {
   return `<div style="background:var(--bg);border-radius:10px;padding:12px;margin-bottom:10px;border:1px solid var(--border);">

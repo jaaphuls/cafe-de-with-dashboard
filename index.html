@@ -816,7 +816,17 @@
         </div>
 
         <div style="margin-top:24px;">
-          <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted);margin-bottom:10px;">Alle gerechten in database</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted);">Alle gerechten in database</div>
+            <button class="btn btn-ghost btn-sm" onclick="meQuickAddGerecht()">＋ Nieuw gerecht</button>
+          </div>
+          <div id="me-quick-add" style="display:none;margin-bottom:10px;display:none;">
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input id="me-quick-naam" class="form-control" placeholder="Naam nieuw gerecht…" style="flex:1;font-size:13px;" onkeydown="if(event.key==='Enter')meQuickAddSave();if(event.key==='Escape')meQuickAddCancel();">
+              <button class="btn btn-primary btn-sm" onclick="meQuickAddSave()">Toevoegen</button>
+              <button class="btn btn-ghost btn-sm" onclick="meQuickAddCancel()">Annuleren</button>
+            </div>
+          </div>
           <div id="me-gerecht-pool" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
         </div>
       </div>
@@ -1991,6 +2001,23 @@ function addMeGerechtToFirst(gid) {
 }
 function addMenuSection() { meSections.push({naam:'Nieuwe sectie', gerechten:[]}); renderMeSections(); }
 function removeMeSection(si) { meSections.splice(si,1); renderMeSections(); renderMePool(); }
+function meQuickAddGerecht() {
+  const el = document.getElementById('me-quick-add');
+  el.style.display = 'block';
+  document.getElementById('me-quick-naam').value = '';
+  document.getElementById('me-quick-naam').focus();
+}
+function meQuickAddCancel() { document.getElementById('me-quick-add').style.display = 'none'; }
+function meQuickAddSave() {
+  const naam = document.getElementById('me-quick-naam').value.trim();
+  if (!naam) return;
+  const g = { id: 'g' + Date.now(), naam, categorie: '', prijs: 0, status: 'actief', allergenen: [], beschrijving: '' };
+  db.gerechten.push(g);
+  save();
+  document.getElementById('me-quick-add').style.display = 'none';
+  renderMePool();
+  addMeGerechtToFirst(g.id);
+}
 
 // ════════════════════════════════════════
 // GERECHTEN

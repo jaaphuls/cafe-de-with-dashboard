@@ -6219,10 +6219,7 @@ function stockGetOrCreate() {
       id: uid(),
       label: stockKwartaalLabel(),
       datum: new Date().toISOString().slice(0, 10),
-      secties: STOCK_TEMPLATE.map(s => ({
-        naam: s.naam,
-        items: s.items.map(it => ({ product: it.product, eenheid: it.eenheid, aantal: '', prijs: '' }))
-      }))
+      secties: STOCK_TEMPLATE.map(s => ({ naam: s.naam, items: [] }))
     };
     save();
   }
@@ -6252,12 +6249,13 @@ function renderStocklijst() {
           </tr>
         </thead>
         <tbody>
+          <datalist id="stock-dl-${si}">${db.ingredienten.map(d=>`<option value="${esc(d.naam)}"></option>`).join('')}</datalist>
           ${sec.items.map((it, ii) => `
-            <tr>
+            <tr id="stock-row-${si}-${ii}">
               <td style="padding:4px 6px;border:1px solid var(--border);">
-                <input value="${esc(it.product)}" placeholder="Product…"
-                  style="width:100%;border:none;background:transparent;font-size:13px;color:var(--text);"
-                  oninput="stockUpdate(${si},${ii},'product',this.value)">
+                <input list="stock-dl-${si}" value="${esc(it.product)}" placeholder="Typ naam ingrediënt…"
+                  style="width:100%;border:none;background:transparent;font-size:13px;color:var(--text);${it.ingredientId?'color:var(--accent);':''}"
+                  oninput="stockAutofill(${si},${ii},this.value)">
               </td>
               <td style="padding:4px 6px;border:1px solid var(--border);">
                 <input value="${esc(it.eenheid)}" placeholder="Eenheid…"
@@ -6289,6 +6287,20 @@ function renderStocklijst() {
 function stockUpdate(si, ii, field, val) {
   db.stockCurrent.secties[si].items[ii][field] = val;
   save();
+}
+function stockAutofill(si, ii, val) {
+  const item = db.stockCurrent.secties[si].items[ii];
+  item.product = val;
+  const match = db.ingredienten.find(d => d.naam.toLowerCase() === val.toLowerCase());
+  if (match) {
+    item.ingredientId = match.id;
+    item.eenheid = match.eenheid || item.eenheid;
+    item.prijs = match.prijs ? String(match.prijs) : item.prijs;
+    save();
+    renderStocklijst();
+  } else {
+    if (item.ingredientId) { item.ingredientId = null; save(); }
+  }
 }
 function stockAddRow(si) {
   db.stockCurrent.secties[si].items.push({ product: '', eenheid: '', aantal: '', prijs: '' });

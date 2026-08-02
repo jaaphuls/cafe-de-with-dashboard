@@ -2646,27 +2646,19 @@ function ingRowHtml(ing, i) {
       <button class="btn btn-danger btn-sm" onclick="removeIng(${i})">✕</button>
     </div>`;
   }
-  const ingOptions = db.ingredienten.map(d =>
-    `<option value="${d.id}" ${ing.ingredientId===d.id?'selected':''}>${esc(d.naam)}</option>`
-  ).join('');
+  const dlId = `ing-dl-${i}`;
   const isLinked = !!ing.ingredientId;
-  return `<div class="ing-row" style="flex-wrap:wrap;gap:4px;">
-    <div style="display:flex;align-items:center;gap:4px;width:100%;min-width:160px;flex:2;">
-      <div style="display:flex;flex-direction:column;gap:2px;flex:1;">
-        <select style="font-size:11px;padding:2px 4px;border:1px solid var(--border);border-radius:5px;background:var(--surface);color:var(--muted);"
-          onchange="ingLinkIngredient(${i},this.value)">
-          <option value="">🥦 Kies ingredient…</option>
-          ${ingOptions}
-        </select>
-        <input placeholder="Naam" value="${esc(ing.naam||'')}"
-          oninput="modalIngredients[${i}].naam=this.value;modalIngredients[${i}].ingredientId=null;rebuildIngs()"
-          style="font-size:13px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;background:var(--surface);color:var(--text);">
-      </div>
-      ${isLinked ? `<span style="font-size:10px;background:var(--accent-light);color:var(--accent);border-radius:4px;padding:2px 5px;white-space:nowrap;flex-shrink:0;">gekoppeld</span>` : ''}
+  return `<div class="ing-row" style="align-items:flex-start;">
+    <datalist id="${dlId}">${db.ingredienten.map(d=>`<option value="${esc(d.naam)}"></option>`).join('')}</datalist>
+    <div style="flex:2;min-width:120px;position:relative;">
+      <input list="${dlId}" placeholder="Naam ingrediënt…" value="${esc(ing.naam||'')}"
+        style="width:100%;box-sizing:border-box;${isLinked?'border-color:var(--accent);background:var(--accent-light);':''}"
+        oninput="ingAutofill(${i},this.value)">
+      ${isLinked ? `<span style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10px;background:var(--accent);color:#fff;border-radius:4px;padding:1px 5px;pointer-events:none;">✓</span>` : ''}
     </div>
-    <input type="number" placeholder="Hoev." value="${ing.hoeveelheid||''}" step="0.1" oninput="modalIngredients[${i}].hoeveelheid=parseFloat(this.value)||0;recalcCost()" style="width:70px;">
+    <input type="number" placeholder="Hoev." value="${ing.hoeveelheid||''}" step="0.1" oninput="modalIngredients[${i}].hoeveelheid=parseFloat(this.value)||0;recalcCost()">
     <select onchange="modalIngredients[${i}].eenheid=this.value">${['stuk','gram','kg','dl','liter','portie','el','tl'].map(u=>`<option ${(ing.eenheid||'stuk')===u?'selected':''}>${u}</option>`).join('')}</select>
-    <input type="number" placeholder="€/eenh." value="${ing.kostprijs||''}" step="0.01" oninput="modalIngredients[${i}].kostprijs=parseFloat(this.value)||0;recalcCost()" style="width:80px;">
+    <input type="number" placeholder="€/eenh." value="${ing.kostprijs||''}" step="0.01" oninput="modalIngredients[${i}].kostprijs=parseFloat(this.value)||0;recalcCost()">
     <button class="btn btn-danger btn-sm" onclick="removeIng(${i})">✕</button>
   </div>`;
 }
@@ -2682,6 +2674,19 @@ function ingLinkIngredient(i, ingredientId) {
   modalIngredients[i].kostprijs = parseFloat(d.prijs) || 0;
   rebuildIngs();
   recalcCost();
+}
+function ingAutofill(i, val) {
+  modalIngredients[i].naam = val;
+  const match = db.ingredienten.find(d => d.naam.toLowerCase() === val.toLowerCase());
+  if (match) {
+    modalIngredients[i].ingredientId = match.id;
+    modalIngredients[i].eenheid = match.eenheid || 'stuk';
+    modalIngredients[i].kostprijs = parseFloat(match.prijs) || 0;
+    rebuildIngs();
+    recalcCost();
+  } else {
+    if (modalIngredients[i].ingredientId) { modalIngredients[i].ingredientId = null; rebuildIngs(); }
+  }
 }
 // ── Componenten helpers (gerechten) ──
 let currentBordfoto = undefined;

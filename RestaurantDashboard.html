@@ -693,6 +693,8 @@
       <div class="nav-item" onclick="showView('rnd')"><span class="icon">🔬</span> R&D</div>
       <div class="nav-item" onclick="showView('inkooplijst')"><span class="icon">🛍️</span> Inkooplijst</div>
       <div class="nav-item" onclick="showView('keuken-schoonmaak')"><span class="icon">🧽</span> Schoonmaak</div>
+      <div class="nav-item" onclick="showView('stocklijst')"><span class="icon">📦</span> Stocklijst</div>
+      <div class="nav-item" onclick="showView('haccp')"><span class="icon">🛡️</span> HACCP</div>
     </div>
     <div class="sidebar-section">
       <div class="sidebar-label">🫶 FOH</div>
@@ -1113,6 +1115,54 @@
       <div id="keukenschoonmaak-body"></div>
     </div>
 
+    <!-- STOCKLIJST -->
+    <div class="view" id="view-stocklijst">
+      <div class="view-header">
+        <div>
+          <div class="view-title">📦 Stocklijst</div>
+          <div class="view-subtitle">Kwartaallijst — inventarisatie per sectie</div>
+        </div>
+        <div class="view-actions">
+          <button class="btn btn-ghost" onclick="stockPrint()">🖨️ Printen</button>
+          <button class="btn btn-ghost" onclick="showView('stocklijst-archief')">🗂️ Archief</button>
+          <button class="btn btn-primary" onclick="stockAfsluiten()">✅ Kwartaal afsluiten</button>
+        </div>
+      </div>
+      <div id="stocklijst-info" style="margin-bottom:16px;"></div>
+      <div id="stocklijst-body"></div>
+    </div>
+
+    <!-- STOCKLIJST ARCHIEF -->
+    <div class="view" id="view-stocklijst-archief">
+      <div class="view-header">
+        <div>
+          <div class="view-title">🗂️ Stock Archief</div>
+          <div class="view-subtitle">Afgesloten kwartaallijsten</div>
+        </div>
+        <div class="view-actions">
+          <button class="btn btn-ghost" onclick="showView('stocklijst')">← Terug</button>
+        </div>
+      </div>
+      <div id="stockarchief-body"></div>
+    </div>
+
+    <!-- HACCP -->
+    <div class="view" id="view-haccp">
+      <div class="view-header">
+        <div>
+          <div class="view-title">🛡️ HACCP</div>
+          <div class="view-subtitle">HACCP documentatie — upload en beheer lijsten</div>
+        </div>
+        <div class="view-actions">
+          <label class="btn btn-primary" style="cursor:pointer;">
+            ＋ PDF uploaden
+            <input type="file" accept="application/pdf" style="display:none;" onchange="haccpUpload(this)">
+          </label>
+        </div>
+      </div>
+      <div id="haccp-body"></div>
+    </div>
+
     <!-- FINANCIËN -->
     <div class="view" id="view-financien">
       <div class="view-header">
@@ -1377,6 +1427,9 @@ function defaultDB() {
     checklists: { opening: [], sluiting: [], afgevinkt: {} },
     schoonmaak: { taken: [], afgevinkt: {}, lastWeekCheck: '', lastMonthCheck: '' },
     keukenschoonmaak: { taken: [], afgevinkt: {}, lastWeekCheck: '', lastMonthCheck: '' },
+    stockCurrent: null,
+    stockArchief: [],
+    haccpDocs: [],
     rnd: [],
     taken: [],
     bestellingen: [],
@@ -1429,6 +1482,9 @@ function render(name) {
     checklists: renderChecklists,
     schoonmaak: () => renderSchoonmaakView('schoonmaak'),
     'keuken-schoonmaak': () => renderSchoonmaakView('keukenschoonmaak'),
+    stocklijst: renderStocklijst,
+    'stocklijst-archief': renderStockArchief,
+    haccp: renderHaccp,
     financien: renderFinancien,
     agenda: renderAgenda,
     'verbouw-overzicht': renderVerbouwOverzicht,
@@ -6049,6 +6105,389 @@ document.addEventListener('click', e => {
     document.getElementById('search-results-panel').classList.remove('open');
   }
 });
+
+// ════════════════════════════════════════
+// STOCKLIJST
+// ════════════════════════════════════════
+
+const STOCK_TEMPLATE = [
+  { naam: 'Dry store keuken', items: [
+    { product: 'kristalsuiker', eenheid: 'pak (1 kg)' },
+    { product: 'basterdsuiker', eenheid: 'pak (600 gr)' },
+    { product: 'poedersuiker', eenheid: 'bak (5 kg)' },
+    { product: 'chocolade 65%', eenheid: 'kg' },
+    { product: 'pompoenpit', eenheid: 'za' },
+    { product: 'zonnebloemopit', eenheid: 'zak (1 kg)' },
+    { product: 'amandel', eenheid: 'zak (1 kg)' },
+    { product: 'amandelschaafsel', eenheid: 'zak (1 kg)' },
+    { product: 'amandeleel', eenheid: 'zak (1 kg)' },
+    { product: 'hazelnoot', eenheid: 'zak (1 kg)' },
+    { product: 'walnoot', eenheid: 'zak (1 kg)' },
+    { product: 'kikkererwten', eenheid: 'blik (240)' },
+    { product: 'rijstazijn', eenheid: 'fles (500 ml)' },
+    { product: 'mirin', eenheid: 'fles (500 ml)' },
+    { product: 'miso', eenheid: 'pak (400 gr)' },
+    { product: 'gochujang', eenheid: 'pak (500 gr)' },
+    { product: 'kombu', eenheid: 'pak (100 gr)' },
+    { product: 'polenta', eenheid: 'pak (850 gr)' },
+    { product: 'ansjovis', eenheid: 'pot (740 gr)' },
+    { product: 'alpro soya', eenheid: 'pak (1L)' },
+    { product: 'volle melk houdbaar', eenheid: 'pak (1L)' },
+    { product: 'Mutti pelati', eenheid: 'blik (2600 gr)' },
+    { product: 'Geroosterde paprika', eenheid: 'blik (2950 gr)' },
+    { product: 'mutti concentrato', eenheid: '' },
+  ]},
+  { naam: 'Olie & azijnen', items: [
+    { product: 'primofiore olijf', eenheid: 'blik (5L)' },
+    { product: 'ybarra olijf', eenheid: 'blik (5L)' },
+    { product: 'pompoenitolie', eenheid: 'jerrycan (5L)' },
+    { product: 'hazelnootolie', eenheid: 'jerrycan (5L)' },
+    { product: 'amandelolie', eenheid: 'jerrycan (5L)' },
+    { product: 'sherry azijn', eenheid: 'jerrycan (5L)' },
+    { product: 'witte wijn azijn', eenheid: 'jerrycan (5L)' },
+    { product: 'rode wijn azijn', eenheid: 'jerrycan (5L)' },
+    { product: 'calamansi azijn', eenheid: 'jerrycan (5L)' },
+    { product: 'malt azijn', eenheid: 'jerrycan (5L)' },
+    { product: 'kappers', eenheid: 'emmer (5 kg)' },
+  ]},
+  { naam: 'Vis', items: [
+    { product: 'Heilbot', eenheid: 'Kilo' },
+    { product: 'gamba', eenheid: '800 gram' },
+    { product: 'Sepia', eenheid: 'Kilo' },
+    { product: 'Oester', eenheid: 'Doos' },
+  ]},
+  { naam: 'Vlees', items: [
+    { product: 'bavette', eenheid: 'Kilo' },
+    { product: 'Diamanthaas', eenheid: 'Kilo' },
+    { product: 'cecina', eenheid: 'Kilo' },
+    { product: 'merguez', eenheid: 'Kilo' },
+  ]},
+  { naam: 'Zuivel', items: [
+    { product: 'slagroom', eenheid: 'fles (1L)' },
+    { product: 'karnemelk', eenheid: 'fles (1L)' },
+    { product: 'melk', eenheid: 'fles (1L)' },
+    { product: 'boter', eenheid: 'kg' },
+    { product: 'boter geit', eenheid: 'kg' },
+    { product: 'eieren', eenheid: 'tray (30 st)' },
+    { product: 'eigeel', eenheid: 'pak (1L)' },
+    { product: 'eiwit', eenheid: 'pak (1L)' },
+    { product: 'creme fraiche', eenheid: 'liter' },
+    { product: 'mozzarella', eenheid: 'emmer (2 kg)' },
+  ]},
+  { naam: 'Vriezer', items: [
+    { product: '', eenheid: '' },
+    { product: '', eenheid: '' },
+    { product: '', eenheid: '' },
+  ]},
+  { naam: 'Schoonmaak & keukenbenodigdheden', items: [
+    { product: 'poetspapier', eenheid: 'rol' },
+    { product: 'gele doekjes', eenheid: 'doos' },
+    { product: 'schuurspons', eenheid: 'pak (10 st)' },
+    { product: 'schuurbol', eenheid: 'pak (10 st)' },
+    { product: 'afwasborstel', eenheid: 'stuk' },
+    { product: 'toptex papier', eenheid: 'doos' },
+    { product: 'handschoenen', eenheid: 'pak' },
+    { product: 'slagersfolie', eenheid: 'rol' },
+    { product: 'paarse folie', eenheid: 'rol' },
+    { product: 'aluminium folie', eenheid: 'rol' },
+    { product: 'vacuum klein', eenheid: 'pak' },
+    { product: 'vacuum middel', eenheid: 'pak' },
+    { product: 'vacuum groot', eenheid: 'pak' },
+    { product: 'afvalzak grijs', eenheid: 'rol' },
+    { product: 'afvalzak blauw', eenheid: 'rol' },
+    { product: 'perojet vaatwasmiddel', eenheid: 'jerrycan (10 L)' },
+    { product: 'perojet glansspoelmiddel', eenheid: 'jerrycan (10 L)' },
+    { product: 'gastro pur eco', eenheid: 'jerrycan (10 L)' },
+    { product: 'levante eco', eenheid: 'jerrycan (10 L)' },
+    { product: 'rational active green', eenheid: 'emmer' },
+    { product: 'rational naglans', eenheid: 'emmer' },
+    { product: 'zilversoda', eenheid: 'pak (1 kg)' },
+    { product: 'bleek', eenheid: 'fles (1L)' },
+    { product: 'broxo vaatwaszout', eenheid: 'zak (10 kg)' },
+  ]},
+];
+
+function stockKwartaalLabel(date) {
+  const d = date || new Date();
+  const q = Math.ceil((d.getMonth() + 1) / 3);
+  return `${q}e kwartaal ${d.getFullYear()}`;
+}
+
+function stockGetOrCreate() {
+  if (!db.stockCurrent) {
+    db.stockCurrent = {
+      id: uid(),
+      label: stockKwartaalLabel(),
+      datum: new Date().toISOString().slice(0, 10),
+      secties: STOCK_TEMPLATE.map(s => ({
+        naam: s.naam,
+        items: s.items.map(it => ({ product: it.product, eenheid: it.eenheid, aantal: '', prijs: '' }))
+      }))
+    };
+    save();
+  }
+  return db.stockCurrent;
+}
+
+function renderStocklijst() {
+  const stock = stockGetOrCreate();
+  document.getElementById('stocklijst-info').innerHTML =
+    `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <span style="font-size:14px;font-weight:700;color:var(--accent);">📦 ${esc(stock.label)}</span>
+      <span style="font-size:12px;color:var(--muted);">Aangemaakt: ${stock.datum}</span>
+      <span style="font-size:12px;color:var(--muted);">• Alleen de <strong>Aantal</strong> kolom invullen — bij grote verpakkingen tot 1 decimaal</span>
+    </div>`;
+
+  document.getElementById('stocklijst-body').innerHTML = stock.secties.map((sec, si) => `
+    <div style="margin-bottom:28px;">
+      <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted);margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid var(--border);">${esc(sec.naam)}</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="background:var(--surface);">
+            <th style="text-align:left;padding:7px 10px;border:1px solid var(--border);color:var(--muted);font-weight:600;">Product</th>
+            <th style="text-align:left;padding:7px 10px;border:1px solid var(--border);color:var(--muted);font-weight:600;width:140px;">Eenheid</th>
+            <th style="text-align:center;padding:7px 10px;border:1px solid var(--border);background:var(--accent-light);color:var(--accent);font-weight:700;width:90px;">Aantal</th>
+            <th style="text-align:left;padding:7px 10px;border:1px solid var(--border);color:var(--muted);font-weight:600;width:110px;">Prijs</th>
+            <th style="padding:4px;border:1px solid var(--border);width:32px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sec.items.map((it, ii) => `
+            <tr>
+              <td style="padding:4px 6px;border:1px solid var(--border);">
+                <input value="${esc(it.product)}" placeholder="Product…"
+                  style="width:100%;border:none;background:transparent;font-size:13px;color:var(--text);"
+                  oninput="stockUpdate(${si},${ii},'product',this.value)">
+              </td>
+              <td style="padding:4px 6px;border:1px solid var(--border);">
+                <input value="${esc(it.eenheid)}" placeholder="Eenheid…"
+                  style="width:100%;border:none;background:transparent;font-size:13px;color:var(--muted);"
+                  oninput="stockUpdate(${si},${ii},'eenheid',this.value)">
+              </td>
+              <td style="padding:4px 6px;border:1px solid var(--border);background:var(--accent-light);">
+                <input value="${esc(it.aantal)}" placeholder="0"
+                  style="width:100%;border:none;background:transparent;font-size:13px;color:var(--accent);font-weight:700;text-align:center;"
+                  oninput="stockUpdate(${si},${ii},'aantal',this.value)">
+              </td>
+              <td style="padding:4px 6px;border:1px solid var(--border);">
+                <input value="${esc(it.prijs)}" placeholder="€"
+                  style="width:100%;border:none;background:transparent;font-size:13px;color:var(--text);"
+                  oninput="stockUpdate(${si},${ii},'prijs',this.value)">
+              </td>
+              <td style="padding:4px;border:1px solid var(--border);text-align:center;">
+                <button class="btn btn-danger btn-sm" style="padding:1px 5px;font-size:11px;" onclick="stockRemoveRow(${si},${ii})">✕</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <button class="btn btn-ghost btn-sm" style="margin-top:6px;font-size:12px;" onclick="stockAddRow(${si})">＋ Rij toevoegen</button>
+    </div>
+  `).join('');
+}
+
+function stockUpdate(si, ii, field, val) {
+  db.stockCurrent.secties[si].items[ii][field] = val;
+  save();
+}
+function stockAddRow(si) {
+  db.stockCurrent.secties[si].items.push({ product: '', eenheid: '', aantal: '', prijs: '' });
+  save();
+  renderStocklijst();
+}
+function stockRemoveRow(si, ii) {
+  db.stockCurrent.secties[si].items.splice(ii, 1);
+  save();
+  renderStocklijst();
+}
+
+function stockAfsluiten() {
+  if (!db.stockCurrent) return;
+  if (!confirm(`Kwartaal afsluiten en archiveren als "${db.stockCurrent.label}"?`)) return;
+  if (!db.stockArchief) db.stockArchief = [];
+  db.stockArchief.unshift({ ...db.stockCurrent, gearchiveerd: new Date().toISOString().slice(0, 10) });
+  db.stockCurrent = null;
+  save();
+  renderStocklijst();
+}
+
+function renderStockArchief() {
+  const archief = db.stockArchief || [];
+  if (!archief.length) {
+    document.getElementById('stockarchief-body').innerHTML =
+      '<div style="padding:40px;text-align:center;color:var(--muted);">Nog geen afgesloten kwartalen</div>';
+    return;
+  }
+  document.getElementById('stockarchief-body').innerHTML = archief.map((s, idx) => `
+    <div style="margin-bottom:20px;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);cursor:pointer;"
+        onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+        <div>
+          <div style="font-weight:700;font-size:14px;">📦 ${esc(s.label)}</div>
+          <div style="font-size:12px;color:var(--muted);">Gearchiveerd op ${s.gearchiveerd}</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();stockPrintArchief(${idx})">🖨️</button>
+          <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();stockDeleteArchief(${idx})">✕</button>
+        </div>
+      </div>
+      <div style="display:none;padding:16px;">
+        ${s.secties.map(sec => `
+          <div style="margin-bottom:16px;">
+            <div style="font-weight:700;font-size:12px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">${esc(sec.naam)}</div>
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+              <thead><tr style="background:var(--surface);">
+                <th style="padding:5px 8px;border:1px solid var(--border);text-align:left;">Product</th>
+                <th style="padding:5px 8px;border:1px solid var(--border);text-align:left;">Eenheid</th>
+                <th style="padding:5px 8px;border:1px solid var(--border);text-align:center;background:var(--accent-light);color:var(--accent);">Aantal</th>
+                <th style="padding:5px 8px;border:1px solid var(--border);text-align:left;">Prijs</th>
+              </tr></thead>
+              <tbody>${sec.items.filter(it=>it.product).map(it=>`
+                <tr>
+                  <td style="padding:4px 8px;border:1px solid var(--border);">${esc(it.product)}</td>
+                  <td style="padding:4px 8px;border:1px solid var(--border);color:var(--muted);">${esc(it.eenheid)}</td>
+                  <td style="padding:4px 8px;border:1px solid var(--border);text-align:center;background:var(--accent-light);color:var(--accent);font-weight:700;">${esc(it.aantal)}</td>
+                  <td style="padding:4px 8px;border:1px solid var(--border);">${esc(it.prijs)}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function stockDeleteArchief(idx) {
+  if (!confirm('Verwijderen?')) return;
+  db.stockArchief.splice(idx, 1);
+  save();
+  renderStockArchief();
+}
+
+function stockPrintData(stock) {
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${stock.label}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; color: #000; padding: 24px; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .sub { font-size: 11px; color: #666; margin-bottom: 24px; }
+    .sectie-titel { font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; color: #555; margin: 20px 0 6px; border-bottom: 1px solid #ccc; padding-bottom: 3px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+    th { background: #f5f5f5; padding: 5px 8px; border: 1px solid #ccc; text-align: left; font-size: 11px; }
+    th.aantal { background: #fff3cd; color: #856404; text-align: center; }
+    td { padding: 4px 8px; border: 1px solid #ddd; }
+    td.aantal { background: #fff3cd; text-align: center; font-weight: bold; }
+    @media print { body { padding: 0; } }
+  </style></head><body>
+  <h1>📦 ${stock.label}</h1>
+  <div class="sub">Datum: ${stock.datum} &nbsp;|&nbsp; Alleen gele vakken invullen — bij grote verpakkingen tot 1 decimaal</div>
+  ${stock.secties.map(sec => `
+    <div class="sectie-titel">${sec.naam}</div>
+    <table><thead><tr>
+      <th>Product</th><th style="width:140px;">Eenheid</th>
+      <th class="aantal" style="width:80px;">Aantal</th>
+      <th style="width:100px;">Prijs</th>
+    </tr></thead><tbody>
+    ${sec.items.filter(it=>it.product).map(it=>`<tr>
+      <td>${it.product}</td><td>${it.eenheid}</td>
+      <td class="aantal">${it.aantal||''}</td>
+      <td>${it.prijs||''}</td>
+    </tr>`).join('')}
+    </tbody></table>
+  `).join('')}
+  </body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
+}
+
+function stockPrint() {
+  const stock = db.stockCurrent;
+  if (!stock) return;
+  stockPrintData(stock);
+}
+function stockPrintArchief(idx) {
+  stockPrintData(db.stockArchief[idx]);
+}
+
+// ════════════════════════════════════════
+// HACCP
+// ════════════════════════════════════════
+
+function haccpUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    if (!db.haccpDocs) db.haccpDocs = [];
+    db.haccpDocs.unshift({
+      id: uid(),
+      naam: file.name.replace(/\.pdf$/i, ''),
+      datum: new Date().toISOString().slice(0, 10),
+      data: e.target.result
+    });
+    save();
+    renderHaccp();
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+function renderHaccp() {
+  const docs = db.haccpDocs || [];
+  const body = document.getElementById('haccp-body');
+  if (!docs.length) {
+    body.innerHTML = `<div style="padding:60px;text-align:center;color:var(--muted);">
+      <div style="font-size:40px;margin-bottom:12px;">🛡️</div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:6px;">Geen HACCP documenten</div>
+      <div style="font-size:13px;">Upload een PDF via de knop rechtsboven</div>
+    </div>`;
+    return;
+  }
+  body.innerHTML = `<div style="display:grid;gap:12px;max-width:700px;">` +
+    docs.map((doc, idx) => `
+      <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;">
+        <div style="font-size:28px;flex-shrink:0;">📄</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(doc.naam)}</div>
+          <div style="font-size:12px;color:var(--muted);">Geüpload: ${doc.datum}</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button class="btn btn-ghost btn-sm" onclick="haccpPrint(${idx})">🖨️ Printen</button>
+          <button class="btn btn-ghost btn-sm" onclick="haccpRename(${idx})">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="haccpDelete(${idx})">✕</button>
+        </div>
+      </div>
+    `).join('') + `</div>`;
+}
+
+function haccpPrint(idx) {
+  const doc = db.haccpDocs[idx];
+  if (!doc) return;
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${doc.naam}</title>
+  <style>body{margin:0;padding:0;} iframe{width:100vw;height:100vh;border:none;} @media print{body{margin:0;}}</style>
+  </head><body><iframe src="${doc.data}"></iframe></body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 600);
+}
+
+function haccpRename(idx) {
+  const doc = db.haccpDocs[idx];
+  const naam = prompt('Naam:', doc.naam);
+  if (naam === null) return;
+  doc.naam = naam.trim() || doc.naam;
+  save();
+  renderHaccp();
+}
+
+function haccpDelete(idx) {
+  if (!confirm('HACCP document verwijderen?')) return;
+  db.haccpDocs.splice(idx, 1);
+  save();
+  renderHaccp();
+}
 
 </script>
 </body>

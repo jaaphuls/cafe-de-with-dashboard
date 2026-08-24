@@ -2218,7 +2218,7 @@ function renderIngredienten(query='') {
                   <td><strong class="editable" onclick="inlineEdit('ingredienten','${i.id}','naam',this)">${i.naam}<span class="edit-hint">✏</span></strong></td>
                   <td class="col-hide-mobile"><span class="editable" style="font-size:12px;color:var(--muted);" onclick="inlineEdit('ingredienten','${i.id}','leverancier',this)">${i.leverancier||'—'}<span class="edit-hint">✏</span></span></td>
                   <td><span class="editable" onclick="inlineEdit('ingredienten','${i.id}','prijs',this,'number')">€${num(i.prijs)}<span class="edit-hint">✏</span></span></td>
-                  <td class="col-hide-mobile"><span class="editable" onclick="inlineEdit('ingredienten','${i.id}','eenheid',this)">${i.eenheid}<span class="edit-hint">✏</span></span></td>
+                  <td class="col-hide-mobile"><select style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--bg);" onchange="inlineSave('ingredienten','${i.id}','eenheid',this.value);propagateIngredientPrijs('${i.id}');save()">${ING_EENHEDEN.map(u=>`<option ${i.eenheid===u?'selected':''}>${u}</option>`).join('')}</select></td>
                   <td>
                     <select style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--bg);" onchange="inlineSave('ingredienten','${i.id}','voorraad',this.value);render(currentView)">
                       ${['OK','Laag','Uitverkocht'].map(s=>`<option ${i.voorraad===s?'selected':''}>${s}</option>`).join('')}

@@ -4132,20 +4132,24 @@ function propagateIngredientPrijs(ingId) {
   if (!ing) return;
   const nieuwePrijs = parseFloat(ing.prijs) || 0;
   const nieuweEenheid = ing.eenheid || '';
+  const normNaam = (s) => (s||'').toLowerCase().replace(/[\(\[（].*?[\)\]）]/g,'').replace(/\s+/g,' ').trim();
+  const ingNorm = normNaam(ing.naam);
+
+  // Match op ingredientId OF op naam (voor oude recepten zonder koppeling)
+  const matchRi = ri => ri.ingredientId === ingId ||
+    (!ri.ingredientId && normNaam(ri.naam) === ingNorm);
 
   // Bijwerken in recepten
-  let receptenBijgewerkt = new Set();
   db.recepten.forEach(recept => {
     let gewijzigd = false;
     (recept.ingredienten || []).forEach(ri => {
-      if (ri.ingredientId === ingId) {
+      if (matchRi(ri)) {
         ri.kostprijs = nieuwePrijs;
-        ri.eenheid = nieuweEenheid;
+        if (!ri.ingredientId) ri.ingredientId = ingId; // koppel meteen
         gewijzigd = true;
       }
     });
     if (gewijzigd) {
-      // Herbereken kostprijsTotaal
       recept.kostprijsTotaal = (recept.ingredienten || []).reduce((s, ri) => {
         if (ri.type === 'subrecept') {
           const sub = db.recepten.find(r => r.id === ri.receptId);
@@ -4153,7 +4157,6 @@ function propagateIngredientPrijs(ingId) {
         }
         return s + (ri.hoeveelheid || 0) * (ri.kostprijs || 0);
       }, 0);
-      receptenBijgewerkt.add(recept.id);
     }
   });
 
@@ -4161,9 +4164,10 @@ function propagateIngredientPrijs(ingId) {
   if (db.stockCurrent) {
     db.stockCurrent.secties.forEach(sec => {
       sec.items.forEach(it => {
-        if (it.ingredientId === ingId) {
+        if (it.ingredientId === ingId || (!it.ingredientId && normNaam(it.product) === ingNorm)) {
           it.prijs = String(nieuwePrijs);
           it.eenheid = nieuweEenheid;
+          if (!it.ingredientId) it.ingredientId = ingId;
         }
       });
     });
@@ -5218,10 +5222,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   if (changed) save();
 
-  // Eenmalige prijssync: alle ingrediëntprijzen doorvoeren in recepten en stocklijst
-  if (!db._prijsSyncDone) {
+  // Eenmalige prijssync: alle ingrediëntprijzen doorvoeren in recepten en stocklijst (ook op naam)
+  if (db._prijsSyncDone !== 2) {
     db.ingredienten.forEach(ing => propagateIngredientPrijs(ing.id));
-    db._prijsSyncDone = true;
+    db._prijsSyncDone = 2;
     save();
   }
 

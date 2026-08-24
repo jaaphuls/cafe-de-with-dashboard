@@ -591,8 +591,8 @@
     </div>
   </div>
   <div id="sync-indicator" title="Sync status" style="display:none;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding:4px 10px;border-radius:20px;background:var(--bg);border:1px solid var(--border);">
-    <div id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:#9ca3af;flex-shrink:0;transition:background .3s;"></div>
-    <span id="sync-label">Sync</span>
+    <div id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:#9ca3af;flex-shrink:0;transition:background .3s;cursor:pointer;" onclick="syncNow()" title="Klik om nu te synchroniseren"></div>
+    <span id="sync-label" style="cursor:pointer;" onclick="syncNow()">Sync</span>
   </div>
   <button class="edit-mode-btn locked" onclick="openSettings()" title="Instellingen">⚙️</button>
 </div>
@@ -5862,17 +5862,25 @@ function setSyncStatus(status, msg) {
   if (status === 'ok') setTimeout(() => { if (syncStatus==='ok') setSyncStatus('idle'); }, 3000);
 }
 
+let lastUploadedHash = null;
 function scheduleSyncUpload() {
   const cfg = loadSyncConfig();
   if (!cfg.binId || !cfg.apiKey) return;
   clearTimeout(syncUploadTimer);
   setSyncStatus('uploading');
-  syncUploadTimer = setTimeout(doSyncUpload, 2000);
+  syncUploadTimer = setTimeout(doSyncUpload, 30000); // max 1x per 30 seconden
+}
+
+function syncNow() {
+  clearTimeout(syncUploadTimer);
+  doSyncUpload();
 }
 
 async function doSyncUpload() {
   const cfg = loadSyncConfig();
   if (!cfg.binId || !cfg.apiKey) return;
+  const currentHash = dbHash();
+  if (currentHash === lastUploadedHash) { setSyncStatus('ok', 'Al up-to-date'); return; }
   try {
     const payload = {
       _syncTs: Date.now(),
@@ -5889,6 +5897,7 @@ async function doSyncUpload() {
       if (res.status === 403) throw new Error('403 — API key ongeldig of verlopen');
       throw new Error(res.status);
     }
+    lastUploadedHash = currentHash;
     setSyncStatus('ok', 'Opgeslagen in cloud');
   } catch(e) {
     setSyncStatus('error', 'Upload mislukt: ' + e.message);

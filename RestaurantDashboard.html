@@ -4522,17 +4522,23 @@ function fcFmt(n) { return (fcState.currency || '€') + (+n).toFixed(2); }
 function fcGetIng(id) { return fcState.ingredients.find(i => i.id === id); }
 function fcSetCurrency(v) { fcState.currency = v; fcSave(); fcRenderAll(); }
 
-const FC_UNIT_ALIASES = { gr:'g', gram:'g', grams:'g', kilogram:'kg', liter:'l', litre:'l', milliliter:'ml', stuk:'unit', stuks:'unit', piece:'unit' };
+const FC_UNIT_ALIASES = { gr:'g', gram:'g', grams:'g', kilogram:'kg', liter:'l', litre:'l', milliliter:'ml', millilitre:'ml', stuk:'unit', stuks:'unit', piece:'unit', x:'unit', st:'unit' };
 function fcNormUnit(u) { if (!u) return u; const s = u.toLowerCase().trim(); return FC_UNIT_ALIASES[s] || s; }
-const FC_UNIT_BASE = { g:1, kg:1000, mg:.001, oz:28.3495, lb:453.592, ml:1, l:1000, cl:10, dl:100, tbsp:14.7868, tsp:4.92892 };
-const FC_MASS = new Set(['g','kg','mg','oz','lb']), FC_VOL = new Set(['ml','l','cl','dl','tbsp','tsp']);
+// 1L = 1kg, 1ml = 1g (gebruikerskeuze voor vereenvoudiging)
+const FC_UNIT_BASE = { g:1, kg:1000, mg:.001, oz:28.3495, lb:453.592, ml:1, l:1000, cl:10, dl:100, tbsp:14.7868, tsp:4.92892, unit:1 };
 function fcConvert(qty, from, to) {
   from = fcNormUnit(from); to = fcNormUnit(to);
   if (!from || !to || from === to) return qty;
   const f = FC_UNIT_BASE[from], t = FC_UNIT_BASE[to];
   if (!f || !t) return null;
-  if ((FC_MASS.has(from) && !FC_MASS.has(to)) || (FC_VOL.has(from) && !FC_VOL.has(to))) return null;
-  return qty * (f / t);
+  return qty * (f / t); // g↔ml en kg↔l worden gelijkgesteld
+}
+// Parseer DB-eenheid zoals "fles (1L)" → {qty:1, unit:'l'}, "pak (600 gr)" → {qty:600, unit:'g'}
+function fcParseDbEenheid(str) {
+  if (!str) return null;
+  const m = str.match(/\((\d+(?:[.,]\d+)?)\s*([a-zA-Z]+)\)/);
+  if (!m) return null;
+  return { qty: parseFloat(m[1].replace(',','.')) || 1, unit: fcNormUnit(m[2]) };
 }
 function fcUnitCost(ing) {
   const base = ing.qty > 0 ? ing.cost / ing.qty : 0;
@@ -4584,16 +4590,28 @@ function fcKostIngredient(ing) {
   if (!dbIng || !dbIng.prijs) return null;
   const prijs = parseFloat(dbIng.prijs) || 0;
   const hoev = parseFloat(ing.hoeveelheid) || 0;
-  const ingEenheid = (ing.eenheid || dbIng.eenheid || '').trim();
-  const dbEenheid = (dbIng.eenheid || '').trim();
+  const ingEenheid = fcNormUnit((ing.eenheid || dbIng.eenheid || '').trim());
+  const dbEenheidRaw = (dbIng.eenheid || '').trim();
 
-  // Unit conversion: convert recipe quantity to db unit before multiplying
-  const converted = fcConvert(hoev, ingEenheid, dbEenheid);
-  const effectief = converted !== null ? converted : hoev;
-  // prijs is per dbEenheid (e.g. €10 per kg)
-  const totaal = prijs * effectief;
+  // Probeer "fles (1L)", "pak (600 gr)" etc. te parsen
+  const parsed = fcParseDbEenheid(dbEenheidRaw);
+  let totaal;
+  if (parsed) {
+    // prijs is per 1 verpakking van parsed.qty parsed.unit
+    // bijv. pak (600 gr) à €3 → prijs per gram = 3/600
+    const prijsPerBaseUnit = prijs / parsed.qty; // prijs per parsed.unit
+    const converted = fcConvert(hoev, ingEenheid, parsed.unit);
+    const effectief = converted !== null ? converted : hoev;
+    totaal = prijsPerBaseUnit * effectief;
+  } else {
+    // DB eenheid is simpel (kg, liter, stuk…)
+    const dbEenheid = fcNormUnit(dbEenheidRaw);
+    const converted = fcConvert(hoev, ingEenheid, dbEenheid);
+    const effectief = converted !== null ? converted : hoev;
+    totaal = prijs * effectief;
+  }
 
-  return { prijs, hoev, totaal, eenheid: ingEenheid, dbEenheid, dbIng, converted };
+  return { prijs, hoev, totaal, eenheid: ingEenheid, dbEenheid: dbEenheidRaw, dbIng };
 }
 
 function fcKostRecept(recept) {

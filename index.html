@@ -2897,7 +2897,9 @@ function saveModal() {
     upsert(db.recepten, obj); renderRecepten();
   } else if (type === 'ingredient') {
     const obj = { naam:v('f-naam'), categorie:v('f-cat'), prijs:parseFloat(v('f-prijs'))||0, eenheid:v('f-eenheid'), leverancier:v('f-lever'), voorraad:v('f-voorraad') };
-    upsert(db.ingredienten, obj); renderIngredienten();
+    upsert(db.ingredienten, obj);
+    if (editingId) propagateIngredientPrijs(editingId);
+    renderIngredienten();
     // reset filters
     ['filter-leverancier','filter-cat-ing'].forEach(id => { const s=document.getElementById(id); if(s){while(s.options.length>1)s.remove(1);} });
     renderIngredienten();
@@ -4105,6 +4107,9 @@ function inlineEdit(collection, id, field, el, type='text') {
     let val = input.value.trim();
     if (type === 'number') val = parseFloat(val) || 0;
     item[field] = val;
+    if (collection === 'ingredienten' && (field === 'prijs' || field === 'eenheid')) {
+      propagateIngredientPrijs(id);
+    }
     save();
     render(currentView);
   };
@@ -4120,6 +4125,49 @@ function inlineEdit(collection, id, field, el, type='text') {
 function inlineSave(collection, id, field, value) {
   const item = (db[collection]||[]).find(x => x.id === id);
   if (item) { item[field] = value; save(); }
+}
+
+function propagateIngredientPrijs(ingId) {
+  const ing = db.ingredienten.find(x => x.id === ingId);
+  if (!ing) return;
+  const nieuwePrijs = parseFloat(ing.prijs) || 0;
+  const nieuweEenheid = ing.eenheid || '';
+
+  // Bijwerken in recepten
+  let receptenBijgewerkt = new Set();
+  db.recepten.forEach(recept => {
+    let gewijzigd = false;
+    (recept.ingredienten || []).forEach(ri => {
+      if (ri.ingredientId === ingId) {
+        ri.kostprijs = nieuwePrijs;
+        ri.eenheid = nieuweEenheid;
+        gewijzigd = true;
+      }
+    });
+    if (gewijzigd) {
+      // Herbereken kostprijsTotaal
+      recept.kostprijsTotaal = (recept.ingredienten || []).reduce((s, ri) => {
+        if (ri.type === 'subrecept') {
+          const sub = db.recepten.find(r => r.id === ri.receptId);
+          return s + (ri.hoeveelheid || 0) * (sub ? (sub.kostprijsTotaal || 0) / (sub.porties || 1) : 0);
+        }
+        return s + (ri.hoeveelheid || 0) * (ri.kostprijs || 0);
+      }, 0);
+      receptenBijgewerkt.add(recept.id);
+    }
+  });
+
+  // Bijwerken in stocklijst (huidige)
+  if (db.stockCurrent) {
+    db.stockCurrent.secties.forEach(sec => {
+      sec.items.forEach(it => {
+        if (it.ingredientId === ingId) {
+          it.prijs = String(nieuwePrijs);
+          it.eenheid = nieuweEenheid;
+        }
+      });
+    });
+  }
 }
 
 function togglePin(id) {

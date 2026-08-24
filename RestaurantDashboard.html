@@ -5885,10 +5885,17 @@ async function doSyncUpload() {
       headers:{'Content-Type':'application/json','X-Master-Key':cfg.apiKey,'X-Bin-Versioning':'false'},
       body: JSON.stringify(payload)
     });
-    if (!res.ok) throw new Error(res.status);
+    if (!res.ok) {
+      if (res.status === 403) throw new Error('403 — API key ongeldig of verlopen');
+      throw new Error(res.status);
+    }
     setSyncStatus('ok', 'Opgeslagen in cloud');
   } catch(e) {
     setSyncStatus('error', 'Upload mislukt: ' + e.message);
+    const label = document.getElementById('sync-label');
+    if (label && e.message.includes('403')) {
+      label.innerHTML = `Upload mislukt (403) — <span style="text-decoration:underline;cursor:pointer;" onclick="openSyncSettings()">Sync instellen</span>`;
+    }
   }
 }
 
@@ -6031,6 +6038,7 @@ function openSyncSetup() {
       <!-- Knoppen -->
       <div style="padding:0 28px 24px;display:flex;gap:8px;justify-content:flex-end;">
         <button class="btn btn-ghost" onclick="document.getElementById('sync-setup-overlay').remove()">Annuleren</button>
+        <button class="btn btn-ghost" style="color:var(--danger);" onclick="localStorage.removeItem('${SYNC_KEY}');document.getElementById('sync-setup-overlay').remove();location.reload()">Reset</button>
         <button class="btn btn-primary" onclick="saveSyncSetup()">✓ Instellen & starten</button>
       </div>
 

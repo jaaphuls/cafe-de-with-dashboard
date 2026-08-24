@@ -2559,7 +2559,7 @@ function buildModal(type, item) {
       <div class="form-group full"><label>Naam</label><input id="f-naam" value="${item?.naam||''}"></div>
       <div class="form-group"><label>Categorie</label><select id="f-cat">${CATS_ING.map(c=>`<option ${item?.categorie===c?'selected':''}>${c}</option>`).join('')}</select></div>
       <div class="form-group"><label>Prijs per eenheid (€)</label><input id="f-prijs" type="number" step="0.01" value="${item?.prijs||''}"></div>
-      <div class="form-group"><label>Eenheid</label><select id="f-eenheid">${['stuk','gram','kg','dl','liter','portie','el','tl'].map(u=>`<option ${item?.eenheid===u?'selected':''}>${u}</option>`).join('')}</select></div>
+      <div class="form-group"><label>Eenheid</label><select id="f-eenheid">${['gr','kg','x','mL','L'].map(u=>`<option ${item?.eenheid===u?'selected':''}>${u}</option>`).join('')}</select></div>
       <div class="form-group"><label>Leverancier</label><input id="f-lever" value="${item?.leverancier||''}"></div>
       <div class="form-group"><label>Voorraad</label><select id="f-voorraad"><option ${item?.voorraad==='OK'?'selected':''}>OK</option><option ${item?.voorraad==='Laag'?'selected':''}>Laag</option><option ${item?.voorraad==='Uitverkocht'?'selected':''}>Uitverkocht</option></select></div>
     </div>`,
@@ -2698,7 +2698,7 @@ function ingRowHtml(ing, i) {
         </select>
       </div>
       <input type="number" placeholder="Hoev." value="${ing.hoeveelheid||''}" step="0.1" oninput="modalIngredients[${i}].hoeveelheid=parseFloat(this.value)||0;recalcCost()">
-      <select onchange="modalIngredients[${i}].eenheid=this.value">${['gram','kg','dl','liter','portie','stuk','el','tl'].map(u=>`<option ${(ing.eenheid||'gram')===u?'selected':''}>${u}</option>`).join('')}</select>
+      <select onchange="modalIngredients[${i}].eenheid=this.value">${ING_EENHEDEN.map(u=>`<option ${(ing.eenheid||'gr')===u?'selected':''}>${u}</option>`).join('')}</select>
       <span style="font-size:12px;color:var(--muted);padding:8px 4px;">${linked ? `€${num(totaal)}` : '—'}</span>
       <button class="btn btn-danger btn-sm" onclick="removeIng(${i})">✕</button>
     </div>`;
@@ -2714,7 +2714,7 @@ function ingRowHtml(ing, i) {
       ${isLinked ? `<span style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10px;background:var(--accent);color:#fff;border-radius:4px;padding:1px 5px;pointer-events:none;">✓</span>` : ''}
     </div>
     <input type="number" placeholder="Hoev." value="${ing.hoeveelheid||''}" step="0.1" oninput="modalIngredients[${i}].hoeveelheid=parseFloat(this.value)||0;recalcCost()">
-    <select onchange="modalIngredients[${i}].eenheid=this.value">${['stuk','gram','kg','dl','liter','portie','el','tl'].map(u=>`<option ${(ing.eenheid||'stuk')===u?'selected':''}>${u}</option>`).join('')}</select>
+    <select onchange="modalIngredients[${i}].eenheid=this.value">${ING_EENHEDEN.map(u=>`<option ${(ing.eenheid||'gr')===u?'selected':''}>${u}</option>`).join('')}</select>
     <input type="number" placeholder="€/eenh." value="${ing.kostprijs||''}" step="0.01" oninput="modalIngredients[${i}].kostprijs=parseFloat(this.value)||0;recalcCost()">
     <button class="btn btn-danger btn-sm" onclick="removeIng(${i})">✕</button>
   </div>`;
@@ -4098,7 +4098,10 @@ function inlineEdit(collection, id, field, el, type='text') {
   const current = item[field] ?? '';
   const width = Math.max(el.offsetWidth, 60);
 
-  el.innerHTML = `<input class="inline-input" type="${type}" value="${String(current).replace(/"/g,'&quot;')}" style="width:${width}px;">`;
+  const isEenheid = collection === 'ingredienten' && field === 'eenheid';
+  el.innerHTML = isEenheid
+    ? `<select class="inline-input" style="width:${width}px;">${ING_EENHEDEN.map(u=>`<option ${current===u?'selected':''}>${u}</option>`).join('')}</select>`
+    : `<input class="inline-input" type="${type}" value="${String(current).replace(/"/g,'&quot;')}" style="width:${width}px;">`;
   const input = el.querySelector('.inline-input');
   input.focus();
   input.select();
@@ -4522,23 +4525,32 @@ function fcFmt(n) { return (fcState.currency || '€') + (+n).toFixed(2); }
 function fcGetIng(id) { return fcState.ingredients.find(i => i.id === id); }
 function fcSetCurrency(v) { fcState.currency = v; fcSave(); fcRenderAll(); }
 
-const FC_UNIT_ALIASES = { gr:'g', gram:'g', grams:'g', kilogram:'kg', liter:'l', litre:'l', milliliter:'ml', millilitre:'ml', stuk:'unit', stuks:'unit', piece:'unit', x:'unit', st:'unit' };
-function fcNormUnit(u) { if (!u) return u; const s = u.toLowerCase().trim(); return FC_UNIT_ALIASES[s] || s; }
-// 1L = 1kg, 1ml = 1g (gebruikerskeuze voor vereenvoudiging)
-const FC_UNIT_BASE = { g:1, kg:1000, mg:.001, oz:28.3495, lb:453.592, ml:1, l:1000, cl:10, dl:100, tbsp:14.7868, tsp:4.92892, unit:1 };
-function fcConvert(qty, from, to) {
-  from = fcNormUnit(from); to = fcNormUnit(to);
-  if (!from || !to || from === to) return qty;
-  const f = FC_UNIT_BASE[from], t = FC_UNIT_BASE[to];
-  if (!f || !t) return null;
-  return qty * (f / t); // g↔ml en kg↔l worden gelijkgesteld
+// Eenheden: gr=mL=1, kg=L=1000, x=1
+// 1L = 1kg, 1mL = 1gr (vereenvoudigd door gebruiker)
+const ING_EENHEDEN = ['gr','kg','x','mL','L'];
+const FC_UNIT_BASE = { gr:1, g:1, gram:1, ml:1, mL:1, milliliter:1, kg:1000, kilogram:1000, l:1000, L:1000, liter:1000, litre:1000, dl:100, cl:10, x:1, stuk:1, stuks:1, st:1, unit:1, portie:1, el:15, tl:5 };
+function fcNormUnit(u) {
+  if (!u) return 'gr';
+  const s = u.trim();
+  // Exact match first (case-sensitive for mL/L)
+  if (FC_UNIT_BASE[s] !== undefined) return s;
+  // Case-insensitive fallback
+  const sl = s.toLowerCase();
+  for (const k of Object.keys(FC_UNIT_BASE)) { if (k.toLowerCase() === sl) return k; }
+  return s;
 }
-// Parseer DB-eenheid zoals "fles (1L)" → {qty:1, unit:'l'}, "pak (600 gr)" → {qty:600, unit:'g'}
+function fcConvert(qty, from, to) {
+  const f = FC_UNIT_BASE[fcNormUnit(from)];
+  const t = FC_UNIT_BASE[fcNormUnit(to)];
+  if (!f || !t) return qty; // onbekende eenheid: gebruik rauwe waarde
+  if (f === t) return qty;
+  return qty * f / t;
+}
 function fcParseDbEenheid(str) {
   if (!str) return null;
   const m = str.match(/\((\d+(?:[.,]\d+)?)\s*([a-zA-Z]+)\)/);
   if (!m) return null;
-  return { qty: parseFloat(m[1].replace(',','.')) || 1, unit: fcNormUnit(m[2]) };
+  return { qty: parseFloat(m[1].replace(',','.')) || 1, unit: m[2] };
 }
 function fcUnitCost(ing) {
   const base = ing.qty > 0 ? ing.cost / ing.qty : 0;

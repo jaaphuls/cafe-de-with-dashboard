@@ -5217,6 +5217,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   if (changed) save();
+
+  // Eenmalige prijssync: alle ingrediëntprijzen doorvoeren in recepten en stocklijst
+  if (!db._prijsSyncDone) {
+    db.ingredienten.forEach(ing => propagateIngredientPrijs(ing.id));
+    db._prijsSyncDone = true;
+    save();
+  }
+
   showLoginScreen();
 });
 
